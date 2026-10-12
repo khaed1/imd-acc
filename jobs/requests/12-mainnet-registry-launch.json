@@ -1,0 +1,31 @@
+{
+  "action": "launch.open",
+  "input": {
+    "objective": "Launch imd/acc's mainnet ProjectRegistry from this repository (the launch-mainnet branch, which is main without .github/workflows; do not add any workflow file): deploy only the ProjectRegistry, exactly as launch.json lists it, on Ethereum mainnet, wired to imd/acc's live mainnet Stacker and to IdentityMD's Intake v2. It decides which projects' cashback earns points, through IdentityMD oracle panels, with no owner. It is the code of Sepolia test run 5 (launch #1428, 0x5f63cdead0f5f693b8964d82b56155f55645ccea), byte for byte, tested live there. imd/acc pays trading cashback to traders as staked IMD (sIMD), 0.25% to 1% of each trade at each project's choice, funded from the project's existing fees; only credits from listed projects earn points.\n\nDEPLOY (Ethereum mainnet, one contract):\n- ProjectRegistry(intake, oracleAsset, stacker, oracleSigner, questionChainId, challengeBond, challengeCooldown) = (0xa43e6f75ee006411f79ac1c84120606c2330de82 Intake v2, 0xd34a99bc0f67ae1bbd63c660e6d0b0dd03e263b7 IMD, 0x06909f672301f28a810f78cfe7a754851269f4f0 the live mainnet Stacker of launch #1409, 0x5598aa9146215bc13eb26f2c692ad1461fd32982 oracle signer, 1, 20e18, 604800). launch.json already lists exactly this: a 20 IMD challenge bond and a 7-day cooldown, agreed by the owner.\n- Do not deploy a Stacker: 0x0690...f4f0 is live (src/Stacker.sol, launch #1409) and primed. The registry only names it in its questions and never calls it.\n- src/ProjectRegistry.sol and src/oracle/OracleAttestation.sol stay as they are: no owner; the constructor makes no external call. applyListing(project, name, sourceUrl, rateBps 25-100, beneficiary): when the project reports an owner through owner() (projectOwner: a staticcall capped at 30,000 gas reading at most 32 bytes; a revert, a malformed answer or zero means no owner), only that owner or the project itself may apply (NotProjectOwner, before any fee); a project without an owner can be applied for by anyone. Anyone may challengeForBeneficiary(project, reason, beneficiary) a listed project after its cooldown. Each ask pays the oracle fee read live from the Intake (ORACLE_FEE(), 0.5 IMD), plus the 20 IMD bond for a challenge, and asks Intake v2 one yes-or-no question with requestWithFailure, with the 8 rules of version 3 (docs/panel-rules-v2.md), each under 512 characters. onOracleResult (0x510379c7) accepts only the Intake, only its own open request, each answer once, only a signature by the oracle signer for this contract issued after the ask (300-second tolerance), from a panel of 15 with at least 11 agreeing: yes lists from that block, or keeps a challenged project (bond to its beneficiary, cooldown not restarted); no rejects, or delists from that block (bond back). onOracleFailure (0xa7980e31) only clears the open question and returns a bond; expire clears one after a day or once the Intake completed it. A bond the token refuses is recorded in bondOwed and claimed with claimBond(to). setBeneficiary waits while a question is open and changes the wallet at most once per day. Questions are filed under chain 1.\n- test/mocks and test/trial hold test doubles and trial contracts only. Keep foundry.toml as it is (solc 0.8.26, cancun, 10,000 runs, bytecode_hash none).\n\nFACTS (read on chain 2026-10-12, Ethereum block 26,177,808): Intake v2 sells the question for 0.5 IMD (priceOf) and delivers answers with 200,000 callback gas. The registry's runtime is 23,256 bytes; deploying it estimates about 5.15M gas. Mainnet fork with the real Intake and IMD (test/RegistryMainnetFork.t.sol): a stranger is refused for an owned project, the owner's application pays the Intake 0.5 IMD and opens our request, a listing answer uses 100,341 gas and a defended challenge 112,901 gas (the 20 IMD bond paid to the beneficiary), both within 200,000.\n\nTESTS: forge test passes (246 tests: 232 run offline; 12 fork tests run when ETH_RPC_URL and SEPOLIA_RPC_URL are set; 2 Stacker-manifest checks skip because this launch.json lists the registry). test/Deployment.t.sol checks this manifest (mainnet IMD, the live Stacker, 20 IMD, 7 days); test/RegistryApplicantGate.t.sol owner-only applications; test/RegistryPolicyRevision.t.sol the version 3 rules; test/RegistryCallbackGas.t.sol and test/RegistryBondOwed.t.sol answers within 200,000 gas. Keep all of them passing.\n\nREADME: once live, add the registry's address to the Ethereum mainnet Deployments table.",
+    "onchain": "evm_contracts",
+    "chainId": 1,
+    "github": true,
+    "repoUrl": "https://github.com/khaed1/imd-acc.git",
+    "baseCommit": "353c9402dd7a668526ff4066f653ef60def0d48e",
+    "references": [
+      "evm-contracts-launch",
+      "defi-native",
+      "eth-security",
+      "eth-testing",
+      "pashov-skill",
+      "solidity-security-review"
+    ],
+    "shape": "chain",
+    "steps": [
+      {
+        "skill": "audit-imported-code"
+      },
+      {
+        "skill": "adapt-contract-project"
+      },
+      {
+        "skill": "adversarial-review"
+      }
+    ]
+  }
+}

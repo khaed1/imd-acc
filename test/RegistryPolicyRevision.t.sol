@@ -15,6 +15,12 @@ contract RegistryPolicyRevisionTest is RegistryBase {
         assertTrue(vm.contains(traderRule, "sender has no code"));
         assertTrue(vm.contains(traderRule, "never tx.origin"));
         assertTrue(vm.contains(traderRule, "Never pay an unresolved router"));
+        // Version 3.1: the one rejected recipient is the router itself, and a contract that
+        // msgSender() reports is a valid trader (a smart-contract wallet), so a panel can't read
+        // every contract as a possible second router (Sepolia test run 5 split on that).
+        assertTrue(vm.contains(traderRule, "the router itself"));
+        assertTrue(vm.contains(traderRule, "valid trader even when it is a contract"));
+        assertFalse(vm.contains(traderRule, "forwarding-router"));
         assertEq(traderRule, vm.parseJsonString(challengeBody, ".definitions.trader"));
         assertLe(bytes(traderRule).length, 512);
 

@@ -537,10 +537,12 @@ contract ProjectRegistry is OracleAttestationConsumer, ReentrancyGuard {
         return _definitions(project, rateBps, beneficiary, true);
     }
 
-    /// @dev Version 3 of the panel's rules (docs/panel-rules-v2.md): version 2, rehearsed on Sepolia, with
-    /// the trader and feeGuard rules from the mainnet Stacker launch's audit (launch #1409). IMD
-    /// takes at most 512 characters per rule, and the rules go into the JSON body as they are, so
-    /// none may contain a double quote or a backslash.
+    /// @dev Version 3.1 of the panel's rules (docs/panel-rules-v2.md): version 2, rehearsed on Sepolia,
+    /// with the trader and feeGuard rules from the mainnet Stacker launch's audit (launch #1409); the
+    /// trader rule names the router itself as the one rejected recipient and a contract reported by
+    /// msgSender() as a valid trader (rehearsed on Sepolia, 11 of 11). IMD takes at most 512
+    /// characters per rule, and the rules go into the JSON body as they are, so none may contain a
+    /// double quote or a backslash.
     function _definitions(address project, uint16 rateBps, address beneficiary, bool application)
         internal
         pure
@@ -561,7 +563,7 @@ contract ProjectRegistry is OracleAttestationConsumer, ReentrancyGuard {
             '"trading":"',
             p,
             " is a trading venue (for example a Uniswap v4 hook, a pool or a launchpad). Every call it can make to credit(trader, amount) on the Stacker happens while executing a trade, for the trader of that trade, with IMD from the fees of that trade. A wallet, an unverified contract, or a contract that can call credit outside a trade, for wallets it picks, or with IMD that is not from the trade fails this rule.",
-            '","trader":"The project never chooses who is credited. Resolve valid router hookData first, else IMsgSender(sender).msgSender() during the swap, else sender only if sender has no code; never tx.origin. Reject zero, Stacker, IMD, vault and forwarding-router recipients. If data is invalid, pay plain IMD to a valid resolved caller. If credit fails, pay its resolved trader plain IMD. Never pay an unresolved router: unsupported routes must supply trader data before cashback is enabled.","otherPayouts":"Cashback that is not credited through the Stacker is allowed and simply earns no points: for example plain IMD paid when credit reverts, or a payout in another form when crediting is not possible. Such payouts never break the trading or rate rules."'
+            '","trader":"The project never chooses who is credited. Resolve valid router hookData first, else IMsgSender(sender).msgSender() during the swap, else sender only if sender has no code; never tx.origin. Reject zero, Stacker, IMD, vault and the router itself; the address msgSender() reports is a valid trader even when it is a contract. If data is invalid, pay plain IMD to a valid resolved caller. If credit fails, pay its resolved trader plain IMD. Never pay an unresolved router: such routes need trader data first.","otherPayouts":"Cashback that is not credited through the Stacker is allowed and simply earns no points: for example plain IMD paid when credit reverts, or a payout in another form when crediting is not possible. Such payouts never break the trading or rate rules."'
         );
         string memory fees = string.concat(
             ',"rate":"',
