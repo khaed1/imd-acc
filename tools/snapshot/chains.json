@@ -4,8 +4,8 @@
     "id": 11155111,
     "stacker": "0x0457276d7b036818b3eddc1a4a3fceda61e9314d",
     "stackerBlock": 11891109,
-    "registry": "0x5f63cdead0f5f693b8964d82b56155f55645ccea",
-    "registryBlock": 11899694,
+    "registry": "0x30a3bb4d75989cb19f83607abc2dffe52a253384",
+    "registryBlock": 11900978,
     "confirmations": 12,
     "rpcs": [
       "https://rpc.sepolia.ethpandaops.io",

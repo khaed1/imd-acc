@@ -5,7 +5,7 @@ Read-only JSON files with every chain's cashback and points totals, rebuilt from
 | File | What it holds |
 |---|---|
 | [`https://imdacc.fun/data/v1/index.json`](https://imdacc.fun/data/v1/index.json) | The chains that have a file, with each file's last block. Start here. |
-| [`https://imdacc.fun/data/v1/sepolia.json`](https://imdacc.fun/data/v1/sepolia.json) | Sepolia: the test run 2 Stacker and the test run 5 registry (since 2026-10-12; before, test run 4's). |
+| [`https://imdacc.fun/data/v1/sepolia.json`](https://imdacc.fun/data/v1/sepolia.json) | Sepolia: the test run 2 Stacker and the test run 6 registry (since 2026-10-12; before, test runs 4 and 5). |
 | [`https://imdacc.fun/data/v1/ethereum.json`](https://imdacc.fun/data/v1/ethereum.json) | Ethereum mainnet: the Stacker of launch #1409. No registry yet (`contracts.registry` is `null`), so no credit earns points there. |
 
 The builder is [`tools/snapshot/build.mjs`](../tools/snapshot/build.mjs) (chains in [`tools/snapshot/chains.json`](../tools/snapshot/chains.json)); the website's workflow runs it on a schedule, on every push to `main`, and on demand.
@@ -44,7 +44,7 @@ All amounts are **strings holding whole numbers in the token's smallest unit**, 
  "chain": { "id": 11155111, "name": "sepolia" },
  "generatedAt": "2026-10-12T12:45:01.000Z",
  "blocks": { "from": 11891109, "to": 11898947, "toTime": "2026-10-12T12:39:24.000Z" },
- "contracts": { "stacker": "0x0457…314d", "registry": "0x5f63…ccea", "registryFromBlock": 11899694 },
+ "contracts": { "stacker": "0x0457…314d", "registry": "0x30a3…3384", "registryFromBlock": 11900978 },
  "tokens": { "imd": { "address": "0x2b69…1e82", "decimals": 18 }, "sImd": { "address": "0xf9e2…1cc1", "decimals": 24 } },
  "totals": { "imd": "1280881069203285333", "shares": "…", "points": "0", "credits": 6, "traders": 2, "projects": 2, "listedProjects": 1 },
  "projects": [
