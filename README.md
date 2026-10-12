@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **Status** | **Ethereum mainnet: the Stacker is live** at [`0x0690…f4f0`](https://etherscan.io/address/0x06909f672301f28a810f78cfe7a754851269f4f0) (launch #1409). Sepolia live: the Stacker (test run 2, launch #1294) and the ProjectRegistry the mainnet one will use (test run 5, launch #1428: rules version 3 and owner-only applications). Live listing trials, 2026-10-12: on test run 4, PLEA listed (11 of 12) and defended (11 of 11); on test run 5, under the version 3 rules, the negative case rejected 11 to 0 and a compliant trial venue listed (11 of 14) and defended (11 of 12), bond to its beneficiary ([history, sections 29 and 39 to 41](docs/history.md#41-test-run-5-trial-complete-the-trialvenue-defended-a-clearer-trader-rule-drafted-2026-10-12)). Next: the trader rule made precise (version 3.1), one more Sepolia run, then the mainnet registry; PLEA's new hook applies once deployed. |
+| **Status** | **Ethereum mainnet: the Stacker is live** at [`0x0690…f4f0`](https://etherscan.io/address/0x06909f672301f28a810f78cfe7a754851269f4f0) (launch #1409). Sepolia live: the Stacker (test run 2, launch #1294) and the ProjectRegistry the mainnet one will use (test run 6, launch #1463: rules version 3.1 and owner-only applications). Live listing trials, 2026-10-12: on test run 4, PLEA listed (11 of 12) and defended (11 of 11); on test run 5, under the version 3 rules, the negative case rejected 11 to 0 and a compliant trial venue listed (11 of 14) and defended (11 of 12), bond to its beneficiary ([history, sections 29 and 39 to 41](docs/history.md#41-test-run-5-trial-complete-the-trialvenue-defended-a-clearer-trader-rule-drafted-2026-10-12)). Next: the test run 6 trial (version 3.1 live), then the mainnet registry (job 12); PLEA's new hook applies once deployed. |
 | **Website** | https://imdacc.fun (GitHub Pages from this repository; the old https://khaed1.github.io/imd-acc/ redirects there: live Sepolia data, real wallet transactions on test run 4, docs). Older IMD-hosted pages show older registries: https://imd-acc-sepolia-test-run-2.sites.imd.fun/ (test run 2) and https://imd-acc-sepolia-test-run.site.identitymd.eth.limo (the first run). |
 | **Contract code** | [`src/Stacker.sol`](src/Stacker.sol) (the cashback funnel) and [`src/ProjectRegistry.sol`](src/ProjectRegistry.sol) (the oracle-decided project list) in this repository. The first Sepolia launch's code, built and deployed by the [IMD swarm](https://imd.fun), is in the [launch-1129 repository](https://github.com/identity-md-launches/launch-1129-build-imd-acc-sepolia-test). |
 
@@ -115,11 +115,19 @@ The registry `main` will use on mainnet, now with owed bonds (a bond the token r
 
 ### Sepolia test run 5 (live, launch #1428, block 11,899,694)
 
-The registry `main` will use on mainnet: test run 4's plus version 3 of the panel rules (the trader is router `hookData`, else the router's `msgSender()`, never a router; LP fees don't count toward the fee guard) and owner-only applications (a project that reports an `owner()` is applied for by that owner or itself), with Sepolia settings, wired to test run 2's Stacker. Code: [launch-1428 repository](https://github.com/identity-md-launches/launch-1428-launch-imd-acc-s-sepolia-test), commit `9062c14a`; its `src/` is byte for byte `main`'s ([history, section 38](docs/history.md#38-sepolia-test-run-5-live-launch-1428-2026-10-12)). Source verified on Sourcify. The website, the data API and the test tools use this registry. Live trial: SelfCredit rejected 11 to 0; the TrialVenue listed from block 11,900,332 and defended ([history, sections 39 to 41](docs/history.md#41-test-run-5-trial-complete-the-trialvenue-defended-a-clearer-trader-rule-drafted-2026-10-12)).
+The registry `main` will use on mainnet: test run 4's plus version 3 of the panel rules (the trader is router `hookData`, else the router's `msgSender()`, never a router; LP fees don't count toward the fee guard) and owner-only applications (a project that reports an `owner()` is applied for by that owner or itself), with Sepolia settings, wired to test run 2's Stacker. Code: [launch-1428 repository](https://github.com/identity-md-launches/launch-1428-launch-imd-acc-s-sepolia-test), commit `9062c14a`; its `src/` is byte for byte `main`'s ([history, section 38](docs/history.md#38-sepolia-test-run-5-live-launch-1428-2026-10-12)). Source verified on Sourcify. Live trial: SelfCredit rejected 11 to 0; the TrialVenue listed from block 11,900,332 and defended ([history, sections 39 to 41](docs/history.md#41-test-run-5-trial-complete-the-trialvenue-defended-a-clearer-trader-rule-drafted-2026-10-12)).
 
 | Contract | Address | Notes |
 |---|---|---|
 | ProjectRegistry | [`0x5f63cdead0f5f693b8964d82b56155f55645ccea`](https://sepolia.etherscan.io/address/0x5f63cdead0f5f693b8964d82b56155f55645ccea) | Stacker `0x0457…314d`, fee `ORACLE_FEE()` 0.5 test IMD of `0x44a1…f89a` (read live from Intake v2), challenge bond 5 test IMD, cooldown 1 hour, panel 15/11, 1-day expiry, one beneficiary handoff per day, owed bonds, owner-only applications (`projectOwner`, `NotProjectOwner`). |
+
+### Sepolia test run 6 (live, launch #1463, block 11,900,978)
+
+The registry `main` will use on mainnet: test run 5's with version 3.1 of the panel rules (the `trader` rule rejects the router itself and says a contract the router's `msgSender()` reports is a valid trader; rehearsed 11 of 11, [panel-rules-v2.md](docs/panel-rules-v2.md#version-31-the-trader-rule-made-precise-2026-10-12)), with Sepolia settings, wired to test run 2's Stacker. The website, the data API and the test tools use this registry.
+
+| Contract | Address | Notes |
+|---|---|---|
+| ProjectRegistry | [`0x30a3bb4d75989cb19f83607abc2dffe52a253384`](https://sepolia.etherscan.io/address/0x30a3bb4d75989cb19f83607abc2dffe52a253384) | Stacker `0x0457…314d`, fee `ORACLE_FEE()` 0.5 test IMD of `0x44a1…f89a` (read live from Intake v2), challenge bond 5 test IMD, cooldown 1 hour, panel 15/11, 1-day expiry, one beneficiary handoff per day, owed bonds, owner-only applications. |
 
 ### Ethereum mainnet (live, launch #1409, block 26,176,629)
 
@@ -266,7 +274,7 @@ forge fmt --check src test
 
 The mainnet fork tests check the live vault's facts (asset, renounced owner, not paused), a credit to a new and a repeat trader, and the one-block hold followed by a redeem. The Sepolia ones check a credit, its event and totals, and that a paused vault makes `credit` revert without moving anything; the registry's fork test sends a real application to Intake v2 and settles it.
 
-**Branches:** `main`'s `launch.json` is the next mainnet launch's manifest: the ProjectRegistry, wired to the live mainnet Stacker (job 12). The `sepolia` branch differs only in `launch.json` (test run 5's registry, wired to the live Sepolia Stacker). `launch-mainnet` and `launch-sepolia` are those two without `.github/workflows`, for IMD's launches; never merge them back.
+**Branches:** `main`'s `launch.json` is the next mainnet launch's manifest: the ProjectRegistry, wired to the live mainnet Stacker (job 12). The `sepolia` branch differs only in `launch.json` (test run 6's registry, wired to the live Sepolia Stacker). `launch-mainnet` and `launch-sepolia` are those two without `.github/workflows`, for IMD's launches; never merge them back.
 
 **Working with IMD:** jobs are paid in IMD (0.5 IMD each) from the owner's wallet. Run the free `POST https://api.imd.fun/requests/check` before paying. Set hosting only with the job's `ipfs` field, never in the prompt text, or the agent tries to publish the site itself and blocks. Docs: https://imd.fun/docs.
 

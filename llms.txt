@@ -16,7 +16,7 @@ Data API (JSON, every chain's cashback and points, about every 15 minutes): http
 ## Addresses (Sepolia 11155111)
 
 - Stacker: 0x0457276d7b036818b3eddc1a4a3fceda61e9314d
-- ProjectRegistry: 0x5f63cdead0f5f693b8964d82b56155f55645ccea (test run 5, launch #1428; a project that reports an owner() is applied for by that owner)
+- ProjectRegistry: 0x30a3bb4d75989cb19f83607abc2dffe52a253384 (test run 6, launch #1463, panel rules version 3.1; a project that reports an owner() is applied for by that owner)
 - TestIMD: 0x2b69099e59b05901faa1dd164fabf098bf831e82
 - TestSIMD (Vault): 0xf9e2eec3b610ec6781f7438ac5fb4bc049d81cc1
 - Oracle Fee Token: 0x44a1cd38474fb1748400e7deb5f8d786cce3f89a

@@ -18,7 +18,7 @@ done
 echo "PASS topics and selectors"
 
 W=0x4b91078b2374c956a65f7af0999cae0a935e6821            # the test wallet, impersonated on the fork
-REG=0x5f63cdead0f5f693b8964d82b56155f55645ccea
+REG=0x30a3bb4d75989cb19f83607abc2dffe52a253384
 SC=0x3d1778be5f9e55f0df35acaf64a13efe2fe81488            # SelfCredit: its owner credits its own IMD
 FT=0x44a1cd38474fb1748400e7deb5f8d786cce3f89a
 OUT=$(mktemp -d)

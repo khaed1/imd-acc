@@ -6,11 +6,12 @@
 (() => {
   'use strict';
 
-  // --- Constants & Addresses (Sepolia test run 5) ---
+  // --- Constants & Addresses (Sepolia test run 6) ---
   const ADDRESSES = {
     SEPOLIA_CHAIN_ID: '0xaa36a7', // 11155111
     STACKER: '0x0457276d7b036818b3eddc1a4a3fceda61e9314d', // test run 2, launch #1294
-    PROJECT_REGISTRY: '0x5f63cdead0f5f693b8964d82b56155f55645ccea', // test run 5, launch #1428
+    PROJECT_REGISTRY: '0x30a3bb4d75989cb19f83607abc2dffe52a253384', // test run 6, launch #1463, rules v3.1
+    REGISTRY_RUN5: '0x5f63cdead0f5f693b8964d82b56155f55645ccea', // launch #1428, rules v3
     REGISTRY_RUN4: '0xfe4470a42df0e77f7efb1b2e8135134a9cd7d102', // launch #1378, rules v2
     REGISTRY_RUN3: '0x9b466d1527322435dc7fdd97bc862b49c177fc2d', // launch #1371
     REGISTRY_RUN2: '0x3a3bfcb65614292b0ec7c62f9e3a5dac003b920e', // launch #1294, rules v1
@@ -26,7 +27,7 @@
   };
 
   // Blocks the live contracts were deployed at: reads start here.
-  const DEPLOY_BLOCK = { STACKER: 11891109, REGISTRY: 11899694 };
+  const DEPLOY_BLOCK = { STACKER: 11891109, REGISTRY: 11900978 };
 
   // Public Sepolia RPCs (all allow browser calls); tried in order.
   const RPC_URLS = [
@@ -767,7 +768,7 @@
             <h3 class="card-title" style="font-size: 1.05rem;">Live Sepolia Network Status</h3>
             <span class="pill pill-live">Test Run 5 Live</span>
           </div>
-          <p class="secondary" style="margin-bottom: 16px;">${blockText()} &middot; Stacker (launch #1294) and ProjectRegistry (launch #1428) live${live.status === 'ready' ? `: ${live.stacks.length} cashback credit${live.stacks.length === 1 ? '' : 's'} so far, ${[...live.projects.values()].filter(p => p.record && p.record.listed).length} listed project(s)` : ''}.</p>
+          <p class="secondary" style="margin-bottom: 16px;">${blockText()} &middot; Stacker (launch #1294) and ProjectRegistry (launch #1463) live${live.status === 'ready' ? `: ${live.stacks.length} cashback credit${live.stacks.length === 1 ? '' : 's'} so far, ${[...live.projects.values()].filter(p => p.record && p.record.listed).length} listed project(s)` : ''}.</p>
           <div style="display: flex; gap: 12px; flex-wrap: wrap;">
             <a href="#/stack" class="btn btn-primary btn-sm">Your Stack Console</a>
             <a href="#/docs" class="btn btn-secondary btn-sm">Read the Docs</a>
@@ -896,7 +897,7 @@
 
             <div class="tool-card" style="background: var(--bg-card);">
               <h4 class="tool-title">Sepolia Verification Status</h4>
-              <p class="tool-desc" style="margin-bottom: 8px;">Stacker at block <code>${DEPLOY_BLOCK.STACKER.toLocaleString('en-US')}</code> (launch #1294); ProjectRegistry at block <code>${DEPLOY_BLOCK.REGISTRY.toLocaleString('en-US')}</code> (launch #1428).</p>
+              <p class="tool-desc" style="margin-bottom: 8px;">Stacker at block <code>${DEPLOY_BLOCK.STACKER.toLocaleString('en-US')}</code> (launch #1294); ProjectRegistry at block <code>${DEPLOY_BLOCK.REGISTRY.toLocaleString('en-US')}</code> (launch #1463).</p>
               <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
                 &bull; Vault status: ${live.status === 'ready'
                   ? `<span style="color: ${live.vaultPaused ? 'var(--status-pending)' : 'var(--status-live)'};">${live.vaultPaused ? 'Paused (credits revert)' : 'Active (Unpaused)'}</span>`
@@ -1011,7 +1012,7 @@
             <tbody>${rows}</tbody>
           </table>
         </div>
-        <p class="secondary" style="font-size: 0.84rem;">Projects come from the test run 5 ProjectRegistry (<span class="mono">${shortAddr(ADDRESSES.PROJECT_REGISTRY)}</span>) and from contracts that credit through the Stacker. Planned: PLEA on Ethereum mainnet, and PondPad on Robinhood Chain through the <a href="#/docs/multichain" style="color: var(--accent-primary);">multichain route</a>.</p>
+        <p class="secondary" style="font-size: 0.84rem;">Projects come from the test run 6 ProjectRegistry (<span class="mono">${shortAddr(ADDRESSES.PROJECT_REGISTRY)}</span>) and from contracts that credit through the Stacker. Planned: PLEA on Ethereum mainnet, and PondPad on Robinhood Chain through the <a href="#/docs/multichain" style="color: var(--accent-primary);">multichain route</a>.</p>
       </div>
     `;
 
@@ -1037,7 +1038,7 @@
             <h1 class="page-title">Project Not Found</h1>
           </div>
           <div class="dashboard-card">
-            <p class="secondary" style="overflow-wrap: anywhere;">Contract <span class="mono">${safe(rawAddr)}</span> has not applied to the test run 5 ProjectRegistry and has no Stacker credits.</p>
+            <p class="secondary" style="overflow-wrap: anywhere;">Contract <span class="mono">${safe(rawAddr)}</span> has not applied to the test run 6 ProjectRegistry and has no Stacker credits.</p>
             <div style="margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
               <a href="#/projects" class="btn btn-secondary btn-sm">&larr; Back to Projects</a>
               <a href="#/apply" class="btn btn-primary btn-sm">Apply for Listing</a>
@@ -1275,7 +1276,7 @@
                 ${live.status !== 'ready' ? blockText() : live.outcomes.length ? live.outcomes.slice(0, 6).map(o => {
                   const p = live.projects.get(o.project);
                   return `&bull; <a href="#/projects/${o.project}">${safe(p?.name || shortAddr(o.project))}</a>: ${o.kind}${o.detail ? ` (${safe(o.detail)})` : ''}`;
-                }).join('<br>') : 'No outcomes yet on the test run 5 registry.'}
+                }).join('<br>') : 'No outcomes yet on the test run 6 registry.'}
               </p>
 
               ${w && w.bondOwed > 0n ? `
@@ -1448,7 +1449,7 @@
                       <td><strong>#${i + 1}</strong></td>
                       <td>${addrLink(t)}${t === state.account ? ' (You)' : ''}</td>
                       <td><strong class="mono" style="color: var(--accent-light);">${fmtUnits(v, 18, 2)}</strong></td>
-                    </tr>`).join('') : '<tr><td colspan="3" class="secondary">No points yet: only credits from projects listed on the test run 5 registry earn points.</td></tr>')}
+                    </tr>`).join('') : '<tr><td colspan="3" class="secondary">No points yet: only credits from projects listed on the test run 6 registry earn points.</td></tr>')}
                   ${mine !== null && !loading && !points.has(state.account) ? `
                     <tr style="background: var(--bg-elevated);">
                       <td>-</td>
@@ -1602,7 +1603,7 @@ error ZeroShares();`;
               <li><strong>sIMD vault</strong>: IMD's own ERC-4626 staking vault. imd/acc only deposits into it.</li>
             </ul>
             <h2 id="status">Where it stands</h2>
-            <p>The Stacker and the ProjectRegistry are live on Sepolia (latest: test run 5, launch #1428). The Stacker is live on Ethereum mainnet (launch #1409), against the real IMD and sIMD. See <a href="#/docs/contracts">Contracts</a> for every address and <a href="#/docs/roadmap">Roadmap</a> for what comes next.</p>
+            <p>The Stacker and the ProjectRegistry are live on Sepolia (latest: test run 6, launch #1463). The Stacker is live on Ethereum mainnet (launch #1409), against the real IMD and sIMD. See <a href="#/docs/contracts">Contracts</a> for every address and <a href="#/docs/roadmap">Roadmap</a> for what comes next.</p>
             <div class="docs-callout"><p>imd/acc is inspired by TokenWorks' btc/acc: the same idea of turning trading activity into a growing stack, here in staked IMD.</p></div>`
         },
         {
@@ -1818,7 +1819,7 @@ error ZeroShares();`;
             <h2 id="sepolia">Sepolia (chain 11155111)</h2>
             <div class="contracts-grid">
               ${docContract('Stacker', 'Live', 'pill-live', ADDRESSES.STACKER, 'The cashback funnel every project calls (launch #1294). The mainnet Stacker adds one check: it refuses the Stacker, the vault and the IMD token as the trader.', EXPLORER.sepolia)}
-              ${docContract('ProjectRegistry', 'Live', 'pill-live', ADDRESSES.PROJECT_REGISTRY, 'The current registry (test run 5, launch #1428): rules v3, owner-only applications, one handoff per day, owed bonds.', EXPLORER.sepolia)}
+              ${docContract('ProjectRegistry', 'Live', 'pill-live', ADDRESSES.PROJECT_REGISTRY, 'The current registry (test run 6, launch #1463): rules v3.1 (the router itself is the rejected recipient; a contract msgSender() reports is a valid trader), owner-only applications, one handoff per day, owed bonds.', EXPLORER.sepolia)}
               ${docContract('TestIMD', 'Sepolia', 'pill-live', ADDRESSES.TEST_IMD, 'Test IMD with a faucet: 10,000 tIMD per address every 24 hours.', EXPLORER.sepolia)}
               ${docContract('TestSIMD vault', 'Sepolia', 'pill-live', ADDRESSES.TEST_SIMD, 'A copy of StakedIMD whose owner can pause it, to test fallbacks.', EXPLORER.sepolia)}
               ${docContract('Oracle test IMD', 'Sepolia', 'pill-live', ADDRESSES.ORACLE_FEE_TOKEN, 'Pays the registry\'s oracle fee and bonds; anyone can mint it.', EXPLORER.sepolia)}
@@ -1833,6 +1834,7 @@ error ZeroShares();`;
             </div>
             <h2 id="earlier">Earlier Sepolia deployments</h2>
             ${docTable(['Contract', 'Address', 'Note'], [
+              ['ProjectRegistry, test run 5 (#1428)', docAddr(ADDRESSES.REGISTRY_RUN5), 'Rules v3; SelfCredit rejected, the TrialVenue listed and defended in the live trial.'],
               ['ProjectRegistry, test run 4 (#1378)', docAddr(ADDRESSES.REGISTRY_RUN4), 'Rules v2; PLEA listed and defended in the live trial.'],
               ['ProjectRegistry, test run 3 (#1371)', docAddr(ADDRESSES.REGISTRY_RUN3), 'Rules v2, before owed bonds.'],
               ['ProjectRegistry, test run 2 (#1294)', docAddr(ADDRESSES.REGISTRY_RUN2), 'Rules v1.'],
@@ -1905,7 +1907,7 @@ error ZeroShares();`;
             <p>Every chain's cashback and points, rebuilt from the chain about every 15 minutes and published with this site. No key and no server: any site or script can fetch them.</p>
             ${docTable(['File', 'What it holds'], [
               ['<a href="./data/v1/index.json"><code>/data/v1/index.json</code></a>', 'The chains that have a file, with each file\'s last block. Start here.'],
-              ['<a href="./data/v1/sepolia.json"><code>/data/v1/sepolia.json</code></a>', 'Sepolia: the test run 2 Stacker and the test run 5 registry.'],
+              ['<a href="./data/v1/sepolia.json"><code>/data/v1/sepolia.json</code></a>', 'Sepolia: the test run 2 Stacker and the test run 6 registry.'],
               ['<a href="./data/v1/ethereum.json"><code>/data/v1/ethereum.json</code></a>', 'Ethereum mainnet: the Stacker (launch #1409). No registry yet, so no points.']
             ])}
             <h2 id="rules">What the numbers mean</h2>
@@ -1962,7 +1964,7 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
               <li><code>nonReentrant</code> on every state-changing entry point, OpenZeppelin <code>SafeERC20</code>, constructors that make no external call.</li>
             </ul>
             <h2 id="audits">Audits</h2>
-            <p>Every launch was built and audited by the <a href="https://imd.fun" target="_blank" rel="noopener noreferrer">IMD swarm</a>: an import audit, four specialist audits (math, permissions, economics, control flow), a judge that reproduces and ranks findings, an independent review, and reproducible bytecode. Sepolia launches #1129, #1294, #1371, #1378 and #1428, and the mainnet launch #1409; each finding was fixed or documented. The tests (unit, fuzz, invariants, and forks of mainnet and Sepolia) are in the repository.</p>
+            <p>Every launch was built and audited by the <a href="https://imd.fun" target="_blank" rel="noopener noreferrer">IMD swarm</a>: an import audit, four specialist audits (math, permissions, economics, control flow), a judge that reproduces and ranks findings, an independent review, and reproducible bytecode. Sepolia launches #1129, #1294, #1371, #1378, #1428 and #1463, and the mainnet launch #1409; each finding was fixed or documented. The tests (unit, fuzz, invariants, and forks of mainnet and Sepolia) are in the repository.</p>
             <h2 id="trust">What you trust</h2>
             <ul>
               <li><strong>The sIMD vault</strong>, IMD's own ERC-4626 vault, whose owner is renounced.</li>
@@ -2004,7 +2006,7 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
           keywords: 'roadmap next mainnet indexer dashboard registry multichain eth route',
           body: `
             <ol>
-              <li><strong>Sepolia test runs</strong> (done): the Stacker and the ProjectRegistry, now at test run 5 (launch #1428).</li>
+              <li><strong>Sepolia test runs</strong> (done): the Stacker and the ProjectRegistry, now at test run 6 (launch #1463).</li>
               <li><strong>Live listing trial</strong> on Sepolia (done, 2026-10-12): PLEA listed by the oracle panel, a negative case rejected, and a challenge against PLEA defended.</li>
               <li><strong>The Stacker on Ethereum mainnet</strong> (done, 2026-10-12, launch #1409), with a full IMD swarm audit. PLEA mainnet uses its address.</li>
               <li><strong>Indexer and mainnet dashboard</strong>: each trader's cashback, points and value, and the leaderboards.</li>
