@@ -240,6 +240,9 @@ jobs/                     IMD swarm job prompts, in order
   5-sepolia-v2-site.md    its test page as a workflow step (replaced by 6)
   6-sepolia-v2-site.md    the test run 2 site, after the launch: app and docs pages (done, job a9afb834)
   7-sepolia-v2-site-pages.md  its follow-up: separate pages, form errors, layout (done, job b874bae9)
+  8-11                    the Sepolia registry runs 3 to 5 (8 audited but never delivered; 9, 10, 11 live)
+  12-mainnet-registry-launch.md  the mainnet ProjectRegistry (ready; re-pin to the version 3.1 code after test run 6)
+  13-sepolia-v6-launch.md the Sepolia registry with panel rules version 3.1 (ready, not paid)
   requests/               exact request bodies for the ready jobs
 listings/sepolia.json     the list-file fallback (test run 2 uses the ProjectRegistry instead)
 .github/ISSUE_TEMPLATE/   the "List my project" application form
