@@ -766,7 +766,7 @@
         <div class="dashboard-card" style="padding: 24px;">
           <div class="card-header-row" style="margin-bottom: 12px;">
             <h3 class="card-title" style="font-size: 1.05rem;">Live Sepolia Network Status</h3>
-            <span class="pill pill-live">Test Run 5 Live</span>
+            <span class="pill pill-live">Test Run 6 Live</span>
           </div>
           <p class="secondary" style="margin-bottom: 16px;">${blockText()} &middot; Stacker (launch #1294) and ProjectRegistry (launch #1463) live${live.status === 'ready' ? `: ${live.stacks.length} cashback credit${live.stacks.length === 1 ? '' : 's'} so far, ${[...live.projects.values()].filter(p => p.record && p.record.listed).length} listed project(s)` : ''}.</p>
           <div style="display: flex; gap: 12px; flex-wrap: wrap;">
@@ -811,7 +811,7 @@
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag"><span class="status-indicator"></span> Sepolia Test Run 5 &middot; ${blockText()}</div>
+          <div class="page-tag"><span class="status-indicator"></span> Sepolia Test Run 6 &middot; ${blockText()}</div>
           <h1 class="page-title">Your Stack & Testnet Console</h1>
           <p class="page-desc">Track accumulated cashback, sIMD vault shares, and use the Sepolia testnet tools.</p>
         </div>
@@ -985,7 +985,7 @@
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag">Test Run 5 Registry &middot; ${blockText()}</div>
+          <div class="page-tag">Test Run 6 Registry &middot; ${blockText()}</div>
           <h1 class="page-title">Participating Projects</h1>
           <p class="page-desc">Only credits from listed projects earn points. Every project selects its rate between 0.25% and 1.0%.</p>
         </div>
@@ -1203,7 +1203,7 @@
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag">Test Run 5 Registry &middot; ${blockText()}</div>
+          <div class="page-tag">Test Run 6 Registry &middot; ${blockText()}</div>
           <h1 class="page-title">Apply for Project Listing</h1>
           <p class="page-desc">List your project on the ownerless ProjectRegistry so your traders' cashback credits earn points.</p>
         </div>
