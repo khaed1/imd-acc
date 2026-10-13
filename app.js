@@ -6,9 +6,8 @@
 (() => {
   'use strict';
 
-  // --- Constants & Addresses (Sepolia test run 6) ---
+  // --- Constants & Addresses ---
   const ADDRESSES = {
-    SEPOLIA_CHAIN_ID: '0xaa36a7', // 11155111
     STACKER: '0x0457276d7b036818b3eddc1a4a3fceda61e9314d', // test run 2, launch #1294
     PROJECT_REGISTRY: '0x30a3bb4d75989cb19f83607abc2dffe52a253384', // test run 6, launch #1463, rules v3.1
     REGISTRY_RUN5: '0x5f63cdead0f5f693b8964d82b56155f55645ccea', // launch #1428, rules v3
@@ -26,15 +25,37 @@
     ROBINHOOD_IMD: '0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127'
   };
 
-  // Blocks the live contracts were deployed at: reads start here.
-  const DEPLOY_BLOCK = { STACKER: 11891109, REGISTRY: 11900978 };
-
-  // Public Sepolia RPCs (all allow browser calls); tried in order.
-  const RPC_URLS = [
-    'https://ethereum-sepolia-rpc.publicnode.com',
-    'https://rpc.sepolia.ethpandaops.io',
-    'https://sepolia.drpc.org'
-  ];
+  // --- Networks: Ethereum mainnet by default, Sepolia for testing (the header switch) ---
+  // Public RPCs that allow browser calls, tried in order. Reads start at the deploy blocks.
+  const NETWORKS = {
+    ethereum: {
+      key: 'ethereum', name: 'Ethereum', badge: 'Mainnet', chainIdHex: '0x1', testnet: false,
+      rpcs: ['https://ethereum-rpc.publicnode.com', 'https://eth.drpc.org', 'https://eth.llamarpc.com'],
+      explorer: 'https://etherscan.io',
+      stacker: ADDRESSES.MAINNET_STACKER, stackerBlock: 26176629, stackerLaunch: 1409,
+      registry: null, registryBlock: 0, registryLaunch: null, // the mainnet registry: filled in when it is live
+      imd: ADDRESSES.MAINNET_IMD, simd: ADDRESSES.MAINNET_SIMD, feeToken: ADDRESSES.MAINNET_IMD,
+      imdLabel: 'IMD', feeLabel: 'IMD', vaultLabel: 'sIMD vault',
+      knownNames: {}
+    },
+    sepolia: {
+      key: 'sepolia', name: 'Sepolia', badge: 'Sepolia test run 6', chainIdHex: '0xaa36a7', testnet: true,
+      rpcs: ['https://ethereum-sepolia-rpc.publicnode.com', 'https://rpc.sepolia.ethpandaops.io', 'https://sepolia.drpc.org'],
+      explorer: 'https://sepolia.etherscan.io',
+      stacker: ADDRESSES.STACKER, stackerBlock: 11891109, stackerLaunch: 1294,
+      registry: ADDRESSES.PROJECT_REGISTRY, registryBlock: 11900978, registryLaunch: 1463,
+      imd: ADDRESSES.TEST_IMD, simd: ADDRESSES.TEST_SIMD, feeToken: ADDRESSES.ORACLE_FEE_TOKEN,
+      imdLabel: 'TestIMD', feeLabel: 'test IMD', vaultLabel: 'TestSIMD vault',
+      knownNames: {
+        '0x2d5a03d5bab98a4a435edad11813373963bca8cc': 'PLEA (hook)',
+        '0x3d1778be5f9e55f0df35acaf64a13efe2fe81488': 'SelfCredit (trial)',
+        '0xf2520b379021ae989bb0ebbd350a0c8571256fef': 'imd/acc TrialVenue'
+      }
+    }
+  };
+  let networkSaved = null;
+  try { networkSaved = localStorage.getItem('imd_acc_network'); } catch {}
+  let NET = NETWORKS[networkSaved] || NETWORKS.ethereum;
 
   const SEL = {
     credit: '0xef6506db', // credit(address,uint256)
@@ -70,12 +91,6 @@
     BeneficiarySet: '0x2906d223dc4163733bb374af8641c7e9ae256e2bae53c90e0c9a2be2e611ae44'
   };
 
-  // Contracts that credit through the Stacker without (yet) a registry application.
-  const KNOWN_NAMES = {
-    '0x2d5a03d5bab98a4a435edad11813373963bca8cc': 'PLEA (hook)',
-    '0x3d1778be5f9e55f0df35acaf64a13efe2fe81488': 'SelfCredit (trial)'
-  };
-
   const ASK_NAMES = ['None', 'Application', 'Challenge'];
   const MAX_UINT = 'f'.repeat(64);
 
@@ -98,7 +113,7 @@
     }
   };
 
-  // What Sepolia says: loaded from public RPCs, refreshed after every confirmed transaction.
+  // What the chain says: loaded from public RPCs, refreshed after every confirmed transaction.
   const live = {
     status: 'idle', // idle | loading | ready | error
     error: '',
@@ -182,16 +197,16 @@
 
   function blockText() {
     if (live.status === 'ready') return `Data at block ${live.block.toLocaleString('en-US')}`;
-    if (live.status === 'error') return 'Sepolia data unavailable';
-    return 'Loading Sepolia data';
+    if (live.status === 'error') return `${NET.name} data unavailable`;
+    return `Loading ${NET.name} data`;
   }
 
   function txLink(hash, label) {
-    return `<a class="mono" href="https://sepolia.etherscan.io/tx/${hash}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    return `<a class="mono" href="${NET.explorer}/tx/${hash}" target="_blank" rel="noopener noreferrer">${label}</a>`;
   }
 
   function addrLink(addr) {
-    return `<a class="mono" href="https://sepolia.etherscan.io/address/${addr}" target="_blank" rel="noopener noreferrer">${shortAddr(addr)}</a>`;
+    return `<a class="mono" href="${NET.explorer}/address/${addr}" target="_blank" rel="noopener noreferrer">${shortAddr(addr)}</a>`;
   }
 
   // --- ABI encoding and decoding (only the types the site needs) ---
@@ -245,10 +260,10 @@
     return new TextDecoder().decode(new Uint8Array(bytes));
   }
 
-  // --- Sepolia reads ---
+  // --- Chain reads ---
   async function rpc(method, params) {
     let lastError = null;
-    for (const url of RPC_URLS) {
+    for (const url of NET.rpcs) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 12000);
       try {
@@ -272,7 +287,7 @@
         clearTimeout(timer);
       }
     }
-    throw lastError || new Error('No Sepolia RPC answered');
+    throw lastError || new Error(`No ${NET.name} RPC answered`);
   }
 
   const ethCall = (to, data) => rpc('eth_call', [{ to, data }, 'latest']);
@@ -313,7 +328,7 @@
     if (!live.projects.has(key)) {
       live.projects.set(key, {
         address: key,
-        name: KNOWN_NAMES[key] || '',
+        name: NET.knownNames[key] || '',
         url: '',
         rateBps: 0,
         applicant: '',
@@ -359,13 +374,15 @@
     try {
       const latest = await rpc('eth_getBlockByNumber', ['latest', false]);
       const block = Number(latest.number);
+      const reg = NET.registry;
+      const zero = '0x' + '0'.repeat(64);
       const [fee, bond, cooldown, paused, stackLogs, regLogs] = await Promise.all([
-        ethCall(ADDRESSES.PROJECT_REGISTRY, SEL.ORACLE_FEE),
-        ethCall(ADDRESSES.PROJECT_REGISTRY, SEL.challengeBond),
-        ethCall(ADDRESSES.PROJECT_REGISTRY, SEL.challengeCooldown),
-        ethCall(ADDRESSES.TEST_SIMD, SEL.paused),
-        getLogs(ADDRESSES.STACKER, [TOPIC.Stacked], DEPLOY_BLOCK.STACKER, block),
-        getLogs(ADDRESSES.PROJECT_REGISTRY, [], DEPLOY_BLOCK.REGISTRY, block)
+        reg ? ethCall(reg, SEL.ORACLE_FEE) : zero,
+        reg ? ethCall(reg, SEL.challengeBond) : zero,
+        reg ? ethCall(reg, SEL.challengeCooldown) : zero,
+        ethCall(NET.simd, SEL.paused),
+        getLogs(NET.stacker, [TOPIC.Stacked], NET.stackerBlock, block),
+        reg ? getLogs(reg, [], NET.registryBlock, block) : []
       ]);
 
       live.projects = new Map();
@@ -396,7 +413,7 @@
         } else if (kind === 'Challenged') {
           entry.detail = `by ${shortAddr(topicAddress(t[2]))}: ${decString(log.data, Number(decUint(w[0])))}`;
         } else if (kind === 'Defended') {
-          entry.detail = `bond ${fmtUnits(decUint(w[0]), 18, 2)} test IMD to the beneficiary`;
+          entry.detail = `bond ${fmtUnits(decUint(w[0]), 18, 2)} ${NET.feeLabel} to the beneficiary`;
         } else if (kind === 'AskCleared') {
           entry.detail = `${ASK_NAMES[Number(decUint(w[0]))] || 'Question'} cleared: ${decBytes32Text(w[2]) || 'no answer'}`;
         } else if (kind === 'BeneficiarySet') {
@@ -429,7 +446,7 @@
 
       const registryProjects = [...live.projects.values()].filter(p => p.inRegistry);
       const records = await Promise.all(registryProjects.map(p =>
-        ethCall(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.projectOf, [['address', p.address]]))));
+        ethCall(NET.registry, encodeCall(SEL.projectOf, [['address', p.address]]))));
       registryProjects.forEach((p, i) => { p.record = decodeRecord(records[i]); });
 
       live.block = block;
@@ -456,14 +473,16 @@
     try {
       const mine = live.stacks.filter(s => s.trader === a.toLowerCase());
       const shares = mine.reduce((sum, s) => sum + s.shares, 0n);
+      const reg = NET.registry;
+      const zero = '0x' + '0'.repeat(64);
       const [imd, imdAllowance, simd, value, feeToken, feeAllowance, owed] = await Promise.all([
-        ethCall(ADDRESSES.TEST_IMD, encodeCall(SEL.balanceOf, [['address', a]])),
-        ethCall(ADDRESSES.TEST_IMD, encodeCall(SEL.allowance, [['address', a], ['address', ADDRESSES.STACKER]])),
-        ethCall(ADDRESSES.TEST_SIMD, encodeCall(SEL.balanceOf, [['address', a]])),
-        ethCall(ADDRESSES.TEST_SIMD, encodeCall(SEL.convertToAssets, [['uint', shares]])),
-        ethCall(ADDRESSES.ORACLE_FEE_TOKEN, encodeCall(SEL.balanceOf, [['address', a]])),
-        ethCall(ADDRESSES.ORACLE_FEE_TOKEN, encodeCall(SEL.allowance, [['address', a], ['address', ADDRESSES.PROJECT_REGISTRY]])),
-        ethCall(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.bondOwed, [['address', a]]))
+        ethCall(NET.imd, encodeCall(SEL.balanceOf, [['address', a]])),
+        ethCall(NET.imd, encodeCall(SEL.allowance, [['address', a], ['address', NET.stacker]])),
+        ethCall(NET.simd, encodeCall(SEL.balanceOf, [['address', a]])),
+        ethCall(NET.simd, encodeCall(SEL.convertToAssets, [['uint', shares]])),
+        ethCall(NET.feeToken, encodeCall(SEL.balanceOf, [['address', a]])),
+        reg ? ethCall(NET.feeToken, encodeCall(SEL.allowance, [['address', a], ['address', reg]])) : zero,
+        reg ? ethCall(reg, encodeCall(SEL.bondOwed, [['address', a]])) : zero
       ]);
       const first = (hex) => decUint(words(hex)[0]);
       live.wallet = {
@@ -488,6 +507,30 @@
     const el = document.activeElement;
     if (auto && el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
     render(true);
+  }
+
+  // --- Network switch (header) ---
+  function setNetwork(key, redraw = true) {
+    if (!NETWORKS[key]) return;
+    NET = NETWORKS[key];
+    try { localStorage.setItem('imd_acc_network', key); } catch {}
+    document.querySelectorAll('.net-btn').forEach(b => {
+      const on = b.getAttribute('data-net') === key;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const badge = document.getElementById('brand-badge');
+    if (badge) badge.textContent = NET.badge;
+    document.querySelectorAll('[data-net-explorer]').forEach(a => {
+      const which = a.getAttribute('data-net-explorer');
+      const addr = which === 'registry' ? NET.registry : NET.stacker;
+      a.href = addr ? `${NET.explorer}/address/${addr}` : '#/docs/contracts';
+      a.textContent = `${NET.name} ${which === 'registry' ? 'ProjectRegistry' : 'Stacker'}${addr ? '' : ' (launching)'}`;
+    });
+    if (!redraw) return;
+    Object.assign(live, { status: 'idle', error: '', block: 0, time: 0, fetchedAt: 0, fee: 0n, bond: 0n, cooldown: 0n, vaultPaused: false, stacks: [], projects: new Map(), outcomes: [], wallet: null });
+    render(true);
+    refreshLive();
   }
 
   // --- Theme Management ---
@@ -516,7 +559,7 @@
     }
   }
 
-  // --- Wallet transactions (Sepolia, estimate x 1.3) ---
+  // --- Wallet transactions (the selected network, estimate x 1.3) ---
   function walletError(e) {
     if (!e) return 'Transaction failed';
     if (e.code === 4001 || /user (rejected|denied)/i.test(e.message || '')) return 'Rejected in your wallet';
@@ -526,7 +569,7 @@
 
   async function connectWallet() {
     if (typeof window.ethereum === 'undefined') {
-      throw new Error('No browser wallet found. Install one (MetaMask, Rabby) to use Sepolia.');
+      throw new Error(`No browser wallet found. Install one (MetaMask, Rabby) to use ${NET.name}.`);
     }
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     if (!accounts || !accounts[0]) throw new Error('No account selected');
@@ -534,13 +577,13 @@
     return state.account;
   }
 
-  async function ensureSepolia() {
+  async function ensureChain() {
     if (!state.account) await connectWallet();
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    if (chainId !== ADDRESSES.SEPOLIA_CHAIN_ID) {
+    if (chainId !== NET.chainIdHex) {
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: ADDRESSES.SEPOLIA_CHAIN_ID }]
+        params: [{ chainId: NET.chainIdHex }]
       });
     }
   }
@@ -573,15 +616,15 @@
     throw new Error('Not confirmed after 3 minutes. Check the transaction in your wallet.');
   }
 
-  // Sends one transaction, waits for it, then reloads what Sepolia says.
+  // Sends one transaction, waits for it, then reloads what the chain says.
   async function sendTx(to, data, label) {
     if (state.busy) throw new Error('Another transaction is still running');
     state.busy = true;
     try {
-      await ensureSepolia();
+      await ensureChain();
       showToast(`${label}: confirm in your wallet`);
       const hash = await sendTxWithGas({ to, data });
-      showToast(`${label}: sent, waiting for Sepolia`);
+      showToast(`${label}: sent, waiting for ${NET.name}`);
       const receipt = await waitForReceipt(hash);
       if (receipt.status !== '0x1') throw new Error(`${label} failed on chain`);
       showToast(`${label}: confirmed`);
@@ -765,12 +808,12 @@
         <!-- Quick Summary Box -->
         <div class="dashboard-card" style="padding: 24px;">
           <div class="card-header-row" style="margin-bottom: 12px;">
-            <h3 class="card-title" style="font-size: 1.05rem;">Live Sepolia Network Status</h3>
-            <span class="pill pill-live">Test Run 6 Live</span>
+            <h3 class="card-title" style="font-size: 1.05rem;">Live ${NET.name} Network Status</h3>
+            <span class="pill pill-live">${NET.testnet ? 'Test Run 6 Live' : 'Mainnet Live'}</span>
           </div>
-          <p class="secondary" style="margin-bottom: 16px;">${blockText()} &middot; Stacker (launch #1294) and ProjectRegistry (launch #1463) live${live.status === 'ready' ? `: ${live.stacks.length} cashback credit${live.stacks.length === 1 ? '' : 's'} so far, ${[...live.projects.values()].filter(p => p.record && p.record.listed).length} listed project(s)` : ''}.</p>
+          <p class="secondary" style="margin-bottom: 16px;">${blockText()} &middot; Stacker (launch #${NET.stackerLaunch})${NET.registry ? ` and ProjectRegistry (launch #${NET.registryLaunch})` : ''} live${live.status === 'ready' ? `: ${live.stacks.length} cashback credit${live.stacks.length === 1 ? '' : 's'} so far, ${[...live.projects.values()].filter(p => p.record && p.record.listed).length} listed project(s)` : ''}.${NET.registry ? '' : ' The ProjectRegistry is being launched; listings open when it is live.'}</p>
           <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <a href="#/stack" class="btn btn-primary btn-sm">Your Stack Console</a>
+            <a href="#/stack" class="btn btn-primary btn-sm">Your Stack</a>
             <a href="#/docs" class="btn btn-secondary btn-sm">Read the Docs</a>
             <a href="#/projects" class="btn btn-secondary btn-sm">View Projects</a>
           </div>
@@ -811,9 +854,9 @@
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag"><span class="status-indicator"></span> Sepolia Test Run 6 &middot; ${blockText()}</div>
-          <h1 class="page-title">Your Stack & Testnet Console</h1>
-          <p class="page-desc">Track accumulated cashback, sIMD vault shares, and use the Sepolia testnet tools.</p>
+          <div class="page-tag"><span class="status-indicator"></span> ${NET.testnet ? 'Sepolia Test Run 6' : 'Ethereum Mainnet'} &middot; ${blockText()}</div>
+          <h1 class="page-title">Your Stack${NET.testnet ? ' & Testnet Console' : ''}</h1>
+          <p class="page-desc">${NET.testnet ? 'Track accumulated cashback, sIMD vault shares, and use the Sepolia testnet tools.' : 'Your cashback, sIMD vault shares, their value today and your points, read live from Ethereum.'}</p>
         </div>
 
         <div class="app-grid">
@@ -837,7 +880,7 @@
               <div class="stat-box">
                 <span class="stat-label">sIMD Shares Held</span>
                 <span class="stat-val" id="stat-shares">${w ? fmtUnits(w.simd, 24) + ' sIMD' : dash}</span>
-                <span class="stat-change">Live in the TestSIMD vault</span>
+                <span class="stat-change">Live in the ${NET.vaultLabel}</span>
               </div>
 
               <div class="stat-box">
@@ -867,15 +910,16 @@
                 </thead>
                 <tbody id="events-table-body">
                   ${live.status === 'ready'
-                    ? stackRows(shown, a ? 'No cashback for this wallet yet. Try "Stack to myself".' : 'No cashback credited yet.')
+                    ? stackRows(shown, a ? (NET.testnet ? 'No cashback for this wallet yet. Try "Stack to myself".' : 'No cashback for this wallet yet: trade in a participating project.') : 'No cashback credited yet.')
                     : `<tr><td colspan="5" class="secondary">${blockText()}</td></tr>`}
                 </tbody>
               </table>
             </div>
           </div>
 
-          <!-- Test Tools -->
+          <!-- Network status, and the test tools on Sepolia -->
           <div class="test-tools-box">
+            ${NET.testnet ? `
             <div class="tool-card">
               <h4 class="tool-title">Sepolia Test IMD Faucet</h4>
               <p class="tool-desc">Request 10,000 TestIMD per address every 24 hours to test trades and crediting.${w ? ` You hold <span class="mono">${fmtUnits(w.imd, 18, 2)}</span> tIMD.` : ''}</p>
@@ -893,18 +937,22 @@
                 <button class="btn btn-primary btn-sm" id="btn-self-stack">Stack</button>
               </div>
               <div class="secondary" style="font-size: 0.78rem;">Self-stacks are direct, no points.</div>
-            </div>
+            </div>` : `
+            <div class="tool-card">
+              <h4 class="tool-title">How to earn cashback</h4>
+              <p class="tool-desc">Trade in a <a href="#/projects" style="color: var(--accent-primary);">participating project</a>. Its hook sends 0.25% to 1% of each trade to the Stacker, which deposits it into the sIMD vault for you in the same transaction. Nothing to claim.${w ? ` You hold <span class="mono">${fmtUnits(w.imd, 18, 2)}</span> IMD.` : ''}</p>
+            </div>`}
 
             <div class="tool-card" style="background: var(--bg-card);">
-              <h4 class="tool-title">Sepolia Verification Status</h4>
-              <p class="tool-desc" style="margin-bottom: 8px;">Stacker at block <code>${DEPLOY_BLOCK.STACKER.toLocaleString('en-US')}</code> (launch #1294); ProjectRegistry at block <code>${DEPLOY_BLOCK.REGISTRY.toLocaleString('en-US')}</code> (launch #1463).</p>
+              <h4 class="tool-title">${NET.name} Network Status</h4>
+              <p class="tool-desc" style="margin-bottom: 8px;">Stacker at block <code>${NET.stackerBlock.toLocaleString('en-US')}</code> (launch #${NET.stackerLaunch}); ${NET.registry ? `ProjectRegistry at block <code>${NET.registryBlock.toLocaleString('en-US')}</code> (launch #${NET.registryLaunch}).` : 'ProjectRegistry: being launched.'}</p>
               <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
                 &bull; Vault status: ${live.status === 'ready'
                   ? `<span style="color: ${live.vaultPaused ? 'var(--status-pending)' : 'var(--status-live)'};">${live.vaultPaused ? 'Paused (credits revert)' : 'Active (Unpaused)'}</span>`
                   : '<span class="mono">&mdash;</span>'}<br>
-                &bull; Oracle fee: <span class="mono">${live.status === 'ready' ? fmtUnits(live.fee, 18, 2) + ' test IMD' : '&mdash;'}</span><br>
-                &bull; Challenge bond: <span class="mono">${live.status === 'ready' ? fmtUnits(live.bond, 18, 0) + ' test IMD' : '&mdash;'}</span><br>
-                &bull; Cooldown: <span class="mono">${live.status === 'ready' ? fmtDuration(live.cooldown) : '&mdash;'}</span>
+                ${NET.registry ? `&bull; Oracle fee: <span class="mono">${live.status === 'ready' ? fmtUnits(live.fee, 18, 2) + ' ' + NET.feeLabel : '&mdash;'}</span><br>
+                &bull; Challenge bond: <span class="mono">${live.status === 'ready' ? fmtUnits(live.bond, 18, 0) + ' ' + NET.feeLabel : '&mdash;'}</span><br>
+                &bull; Cooldown: <span class="mono">${live.status === 'ready' ? fmtDuration(live.cooldown) : '&mdash;'}</span>` : `&bull; Listings and points start when the ProjectRegistry is live.`}
               </div>
             </div>
           </div>
@@ -914,7 +962,7 @@
 
     document.getElementById('btn-faucet')?.addEventListener('click', async () => {
       try {
-        await sendTx(ADDRESSES.TEST_IMD, SEL.faucet, 'Faucet');
+        await sendTx(NET.imd, SEL.faucet, 'Faucet');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -922,7 +970,7 @@
 
     document.getElementById('btn-approve-imd')?.addEventListener('click', async () => {
       try {
-        await sendTx(ADDRESSES.TEST_IMD, SEL.approve + encAddress(ADDRESSES.STACKER) + MAX_UINT, 'Approve TestIMD');
+        await sendTx(NET.imd, SEL.approve + encAddress(NET.stacker) + MAX_UINT, 'Approve TestIMD');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -932,8 +980,8 @@
       try {
         const amount = parseUnits(document.getElementById('self-stack-amt')?.value || '0');
         if (amount === 0n) throw new Error('Enter an amount above 0');
-        await ensureSepolia();
-        await sendTx(ADDRESSES.STACKER, encodeCall(SEL.credit, [['address', state.account], ['uint', amount]]), 'Stack to myself');
+        await ensureChain();
+        await sendTx(NET.stacker, encodeCall(SEL.credit, [['address', state.account], ['uint', amount]]), 'Stack to myself');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -963,7 +1011,7 @@
     if (live.status !== 'ready') {
       rows = `<tr><td colspan="6" class="secondary">${blockText()}</td></tr>`;
     } else if (!projects.length) {
-      rows = `<tr><td colspan="6" class="secondary">No projects here yet. <a href="#/apply" style="color: var(--accent-primary);">Apply for a listing</a>.</td></tr>`;
+      rows = `<tr><td colspan="6" class="secondary">No projects here yet.${NET.registry ? ' <a href="#/apply" style="color: var(--accent-primary);">Apply for a listing</a>.' : ''}</td></tr>`;
     } else {
       rows = projects.map(p => {
         const st = projectState(p);
@@ -973,7 +1021,7 @@
               <div style="font-weight: 700; color: var(--text-primary);">${safe(p.name || shortAddr(p.address))}</div>
               <div class="secondary mono" style="font-size: 0.76rem;">${shortAddr(p.address)}</div>
             </td>
-            <td><span class="mono">Sepolia</span></td>
+            <td><span class="mono">${NET.name}</span></td>
             <td>${p.rateBps ? `<strong class="mono" style="color: var(--accent-light);">${(p.rateBps / 100).toFixed(2)}% (${p.rateBps} bps)</strong>` : '<span class="secondary">&mdash;</span>'}</td>
             <td class="mono">${fmtUnits(p.stacked, 18, 2)} IMD</td>
             <td><span class="pill ${st.cls}">${st.label}</span></td>
@@ -985,7 +1033,7 @@
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag">Test Run 6 Registry &middot; ${blockText()}</div>
+          <div class="page-tag">${NET.testnet ? 'Test Run 6 Registry' : 'Ethereum Mainnet'} &middot; ${blockText()}</div>
           <h1 class="page-title">Participating Projects</h1>
           <p class="page-desc">Only credits from listed projects earn points. Every project selects its rate between 0.25% and 1.0%.</p>
         </div>
@@ -1012,7 +1060,7 @@
             <tbody>${rows}</tbody>
           </table>
         </div>
-        <p class="secondary" style="font-size: 0.84rem;">Projects come from the test run 6 ProjectRegistry (<span class="mono">${shortAddr(ADDRESSES.PROJECT_REGISTRY)}</span>) and from contracts that credit through the Stacker. Planned: PLEA on Ethereum mainnet, and PondPad on Robinhood Chain through the <a href="#/docs/multichain" style="color: var(--accent-primary);">multichain route</a>.</p>
+        <p class="secondary" style="font-size: 0.84rem;">${NET.registry ? `Projects come from the ${NET.name} ProjectRegistry (<span class="mono">${shortAddr(NET.registry)}</span>) and from contracts that credit through the Stacker.` : `The ${NET.name} ProjectRegistry is being launched; until it is live, this page shows the contracts that credit through the Stacker, and no credit earns points.`} Next: PLEA on Ethereum mainnet, and PondPad on Robinhood Chain through the <a href="#/docs/multichain" style="color: var(--accent-primary);">multichain route</a>.</p>
       </div>
     `;
 
@@ -1038,7 +1086,7 @@
             <h1 class="page-title">Project Not Found</h1>
           </div>
           <div class="dashboard-card">
-            <p class="secondary" style="overflow-wrap: anywhere;">Contract <span class="mono">${safe(rawAddr)}</span> has not applied to the test run 6 ProjectRegistry and has no Stacker credits.</p>
+            <p class="secondary" style="overflow-wrap: anywhere;">Contract <span class="mono">${safe(rawAddr)}</span> has not applied to the ${NET.name} ProjectRegistry and has no Stacker credits.</p>
             <div style="margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
               <a href="#/projects" class="btn btn-secondary btn-sm">&larr; Back to Projects</a>
               <a href="#/apply" class="btn btn-primary btn-sm">Apply for Listing</a>
@@ -1067,21 +1115,23 @@
     const now = chainNow();
     const needed = live.fee + live.bond;
     let challengeBody;
-    if (!r || !r.listed) {
+    if (!NET.registry) {
+      challengeBody = `<p class="secondary">The ${NET.name} ProjectRegistry is being launched. Listings, challenges and points start when it is live.</p>`;
+    } else if (!r || !r.listed) {
       challengeBody = `<p class="secondary">Only listed projects can be challenged. ${p.inRegistry ? '' : 'This contract has not applied to the registry.'}</p>`;
     } else if (r.ask !== 0) {
       challengeBody = `<p class="secondary">A question about this project is open; it can be challenged once it settles.</p>`;
     } else {
       const wait = r.challengeOpenAt > now ? r.challengeOpenAt - now : 0;
       challengeBody = `
-        <p class="secondary" style="margin-bottom: 14px;">Anyone can challenge a listed project for the ${fmtUnits(live.fee, 18, 2)} test IMD fee plus a ${fmtUnits(live.bond, 18, 0)} test IMD bond. If the panel says it still meets the rules, the bond goes to its beneficiary; otherwise it is delisted and the bond comes back.</p>
+        <p class="secondary" style="margin-bottom: 14px;">Anyone can challenge a listed project for the ${fmtUnits(live.fee, 18, 2)} ${NET.feeLabel} fee plus a ${fmtUnits(live.bond, 18, 0)} ${NET.feeLabel} bond. If the panel says it still meets the rules, the bond goes to its beneficiary; otherwise it is delisted and the bond comes back.</p>
         ${wait ? `<p class="secondary" style="color: var(--status-pending); margin-bottom: 12px;">Cooldown active. Challenge opens in ${fmtDuration(Math.ceil(wait / 60) * 60)}.</p>` : ''}
         <div class="form-group">
           <label class="form-label" for="ch-reason">Reason for Challenge</label>
           <input type="text" id="ch-reason" class="form-input" maxlength="280" placeholder="State reason (max 280 chars)...">
           <div id="ch-reason-error" class="field-error"></div>
         </div>
-        <button class="btn btn-secondary btn-sm" id="btn-submit-challenge"${wait ? ' disabled' : ''}>Submit Challenge (${fmtUnits(needed, 18, 1)} test IMD)</button>`;
+        <button class="btn btn-secondary btn-sm" id="btn-submit-challenge"${wait ? ' disabled' : ''}>Submit Challenge (${fmtUnits(needed, 18, 1)} ${NET.feeLabel})</button>`;
     }
 
     const expirable = r && r.ask !== 0 && now > r.askedAt + 86400;
@@ -1134,14 +1184,14 @@
       }
       if (err) err.textContent = '';
       try {
-        await ensureSepolia();
+        await ensureChain();
         await loadWallet();
         const w = live.wallet;
-        if (!w || w.feeToken < needed) throw new Error(`You need ${fmtUnits(needed, 18, 1)} test IMD: use "Get 10 test IMD" on the Apply page`);
+        if (!w || w.feeToken < needed) throw new Error(`You need ${fmtUnits(needed, 18, 1)} ${NET.feeLabel}${NET.testnet ? ': use "Get 10 test IMD" on the Apply page' : ' in this wallet'}`);
         if (w.feeAllowance < needed) {
-          await sendTx(ADDRESSES.ORACLE_FEE_TOKEN, SEL.approve + encAddress(ADDRESSES.PROJECT_REGISTRY) + encUint(needed), 'Approve fee and bond');
+          await sendTx(NET.feeToken, SEL.approve + encAddress(NET.registry) + encUint(needed), 'Approve fee and bond');
         }
-        await sendTx(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.challengeForBeneficiary, [['address', p.address], ['string', reason], ['address', r.beneficiary]]), 'Challenge');
+        await sendTx(NET.registry, encodeCall(SEL.challengeForBeneficiary, [['address', p.address], ['string', reason], ['address', r.beneficiary]]), 'Challenge');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -1149,7 +1199,7 @@
 
     document.getElementById('btn-expire')?.addEventListener('click', async () => {
       try {
-        await sendTx(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.expire, [['address', p.address]]), 'Clear question');
+        await sendTx(NET.registry, encodeCall(SEL.expire, [['address', p.address]]), 'Clear question');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -1187,11 +1237,11 @@
 
   function applyStatus() {
     const w = live.wallet;
-    if (!state.account) return 'Connect a wallet on Sepolia to apply.';
-    if (!w || live.status !== 'ready') return 'Reading your balance from Sepolia...';
-    if (w.feeToken < live.fee) return `You need ${fmtUnits(live.fee, 18, 2)} test IMD for the fee: use "Get 10 test IMD".`;
-    if (w.feeAllowance < live.fee) return `Approve the ${fmtUnits(live.fee, 18, 2)} test IMD fee to the registry.`;
-    return `Ready: the ${fmtUnits(live.fee, 18, 2)} test IMD fee is approved.`;
+    if (!state.account) return `Connect a wallet on ${NET.name} to apply.`;
+    if (!w || live.status !== 'ready') return `Reading your balance from ${NET.name}...`;
+    if (w.feeToken < live.fee) return `You need ${fmtUnits(live.fee, 18, 2)} ${NET.feeLabel} for the fee${NET.testnet ? ': use "Get 10 test IMD"' : ''}.`;
+    if (w.feeAllowance < live.fee) return `Approve the ${fmtUnits(live.fee, 18, 2)} ${NET.feeLabel} fee to the registry.`;
+    return `Ready: the ${fmtUnits(live.fee, 18, 2)} ${NET.feeLabel} fee is approved.`;
   }
 
   function renderApply() {
@@ -1200,10 +1250,28 @@
     const w = live.wallet;
     const open = allProjects().filter(p => p.record && p.record.ask !== 0);
 
+    if (!NET.registry) {
+      appRoot.innerHTML = `
+        <div class="page-view">
+          <div class="page-header-block">
+            <div class="page-tag">Ethereum Mainnet &middot; ${blockText()}</div>
+            <h1 class="page-title">Apply for Project Listing</h1>
+            <p class="page-desc">List your project on the ownerless ProjectRegistry so your traders' cashback credits earn points.</p>
+          </div>
+          <div class="dashboard-card">
+            <h3 class="card-title" style="margin-bottom: 12px;">The Ethereum ProjectRegistry is being launched</h3>
+            <p class="secondary" style="margin-bottom: 12px;">The IMD swarm is auditing and deploying it from the public repository (the code tested live on Sepolia test run 6). Applications open on this page when it is live: the project's owner applies for 0.5 IMD, an IdentityMD oracle panel answers against the <a href="#/docs/listing" style="color: var(--accent-primary);">listing rules</a>, and points count from the block a project is listed.</p>
+            <p class="secondary">Until then, test your integration on Sepolia: switch the network in the header, get test IMD from the faucet on <a href="#/stack" style="color: var(--accent-primary);">Your stack</a>, and apply to the test registry here. See <a href="#/docs/testing" style="color: var(--accent-primary);">Testing on Sepolia</a>.</p>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag">Test Run 6 Registry &middot; ${blockText()}</div>
+          <div class="page-tag">${NET.testnet ? 'Test Run 6 Registry' : 'Ethereum Mainnet Registry'} &middot; ${blockText()}</div>
           <h1 class="page-title">Apply for Project Listing</h1>
           <p class="page-desc">List your project on the ownerless ProjectRegistry so your traders' cashback credits earn points.</p>
         </div>
@@ -1243,7 +1311,7 @@
             </div>
 
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px;">
-              <button class="btn btn-secondary btn-sm" id="btn-get-feetoken">Get 10 test IMD</button>
+              ${NET.testnet ? '<button class="btn btn-secondary btn-sm" id="btn-get-feetoken">Get 10 test IMD</button>' : ''}
               <button class="btn btn-secondary btn-sm" id="btn-approve-fee">Approve fee</button>
               <button class="btn btn-primary btn-sm" id="btn-apply-listing">Apply for listing</button>
             </div>
@@ -1276,12 +1344,12 @@
                 ${live.status !== 'ready' ? blockText() : live.outcomes.length ? live.outcomes.slice(0, 6).map(o => {
                   const p = live.projects.get(o.project);
                   return `&bull; <a href="#/projects/${o.project}">${safe(p?.name || shortAddr(o.project))}</a>: ${o.kind}${o.detail ? ` (${safe(o.detail)})` : ''}`;
-                }).join('<br>') : 'No outcomes yet on the test run 6 registry.'}
+                }).join('<br>') : `No outcomes yet on the ${NET.name} registry.`}
               </p>
 
               ${w && w.bondOwed > 0n ? `
                 <h3 class="card-title" style="margin-top: 24px; margin-bottom: 12px;">Bonds Owed to You</h3>
-                <p class="secondary" style="font-size: 0.84rem; margin-bottom: 10px;"><span class="mono">${fmtUnits(w.bondOwed, 18, 2)}</span> test IMD the token couldn't pay you at settlement.</p>
+                <p class="secondary" style="font-size: 0.84rem; margin-bottom: 10px;"><span class="mono">${fmtUnits(w.bondOwed, 18, 2)}</span> ${NET.feeLabel} the token couldn't pay you at settlement.</p>
                 <button class="btn btn-secondary btn-sm" id="btn-claim-bond">Claim to this wallet</button>
               ` : ''}
             </div>
@@ -1303,7 +1371,7 @@
         const ids = ['project', 'name', 'url', 'rate', 'beneficiary'];
         if (ids.some(id => validateApply(id, f[id]))) return;
         try {
-          const ret = await ethCall(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.applyQuestion, [
+          const ret = await ethCall(NET.registry, encodeCall(SEL.applyQuestion, [
             ['address', f.project.trim()], ['string', f.name.trim()], ['string', f.url.trim()], ['uint', f.rate.trim()], ['address', f.beneficiary.trim()]
           ]));
           f.question = decString(ret, Number(decUint(words(ret)[0])));
@@ -1333,9 +1401,9 @@
 
     document.getElementById('btn-get-feetoken')?.addEventListener('click', async () => {
       try {
-        await ensureSepolia();
+        await ensureChain();
         note('');
-        await sendTx(ADDRESSES.ORACLE_FEE_TOKEN, encodeCall(SEL.mint, [['address', state.account], ['uint', 10n * 10n ** 18n]]), 'Get 10 test IMD');
+        await sendTx(NET.feeToken, encodeCall(SEL.mint, [['address', state.account], ['uint', 10n * 10n ** 18n]]), 'Get 10 test IMD');
       } catch (e) {
         note(walletError(e));
       }
@@ -1344,7 +1412,7 @@
     document.getElementById('btn-approve-fee')?.addEventListener('click', async () => {
       try {
         note('');
-        await sendTx(ADDRESSES.ORACLE_FEE_TOKEN, SEL.approve + encAddress(ADDRESSES.PROJECT_REGISTRY) + encUint(live.fee), 'Approve fee');
+        await sendTx(NET.feeToken, SEL.approve + encAddress(NET.registry) + encUint(live.fee), 'Approve fee');
       } catch (e) {
         note(walletError(e));
       }
@@ -1362,26 +1430,26 @@
         return;
       }
       try {
-        note('Checking the project on Sepolia...');
+        note(`Checking the project on ${NET.name}...`);
         const project = f.project.trim();
         const code = await rpc('eth_getCode', [project, 'latest']);
         if (!code || code === '0x') throw new Error('That address has no contract code: only contracts can apply');
-        const rec = decodeRecord(await ethCall(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.projectOf, [['address', project]])));
+        const rec = decodeRecord(await ethCall(NET.registry, encodeCall(SEL.projectOf, [['address', project]])));
         if (rec.listed) throw new Error('This project is already listed');
         if (rec.ask !== 0) throw new Error('This project already has an open question');
-        await ensureSepolia();
+        await ensureChain();
         await loadWallet();
         // A project that reports an owner() can only be applied for by that owner or itself.
         let owner = null;
         try {
-          owner = decAddress(words(await ethCall(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.projectOwner, [['address', project]])))[0]).toLowerCase();
+          owner = decAddress(words(await ethCall(NET.registry, encodeCall(SEL.projectOwner, [['address', project]])))[0]).toLowerCase();
         } catch {}
         if (owner && owner !== '0x0000000000000000000000000000000000000000' && owner !== state.account && project.toLowerCase() !== state.account) {
           throw new Error(`Only this project's owner can apply for it: connect ${owner}`);
         }
         if (!live.wallet || live.wallet.feeToken < live.fee || live.wallet.feeAllowance < live.fee) throw new Error(applyStatus());
         note('');
-        await sendTx(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.applyListing, [
+        await sendTx(NET.registry, encodeCall(SEL.applyListing, [
           ['address', project], ['string', f.name.trim()], ['string', f.url.trim()], ['uint', f.rate.trim()], ['address', f.beneficiary.trim()]
         ]), 'Apply for listing');
         note('Applied: the oracle panel usually answers within minutes.');
@@ -1392,7 +1460,7 @@
 
     document.getElementById('btn-claim-bond')?.addEventListener('click', async () => {
       try {
-        await sendTx(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.claimBond, [['address', state.account]]), 'Claim bond');
+        await sendTx(NET.registry, encodeCall(SEL.claimBond, [['address', state.account]]), 'Claim bond');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -1449,7 +1517,7 @@
                       <td><strong>#${i + 1}</strong></td>
                       <td>${addrLink(t)}${t === state.account ? ' (You)' : ''}</td>
                       <td><strong class="mono" style="color: var(--accent-light);">${fmtUnits(v, 18, 2)}</strong></td>
-                    </tr>`).join('') : '<tr><td colspan="3" class="secondary">No points yet: only credits from projects listed on the test run 6 registry earn points.</td></tr>')}
+                    </tr>`).join('') : `<tr><td colspan="3" class="secondary">No points yet: only credits from projects listed on the ${NET.name} registry earn points.</td></tr>`)}
                   ${mine !== null && !loading && !points.has(state.account) ? `
                     <tr style="background: var(--bg-elevated);">
                       <td>-</td>
@@ -1795,7 +1863,8 @@ error ZeroShares();`;
           body: `
             <h2 id="tokens">Get test tokens</h2>
             <ul>
-              <li><strong>TestIMD</strong> (<code>0x2b69…1e82</code>): call <code>faucet()</code> for 10,000 tIMD per address every 24 hours, or use <a href="#/stack">Your stack</a>.</li>
+              <li><strong>Switch the site to Sepolia</strong> with the network switch in the header: every page then reads the Sepolia test run 6 registry and the test Stacker, and <a href="#/stack">Your stack</a> shows the faucet and a "stack to myself" tool. The choice is remembered in your browser.</li>
+              <li><strong>TestIMD</strong> (<code>0x2b69…1e82</code>): call <code>faucet()</code> for 10,000 tIMD per address every 24 hours, or use the faucet on <a href="#/stack">Your stack</a> in Sepolia mode.</li>
               <li><strong>Oracle test IMD</strong> (<code>0x44a1…f89a</code>): pays the registry's oracle fee; anyone can <code>mint(to, amount)</code>.</li>
             </ul>
             <h2 id="credit">Try a credit</h2>
@@ -2299,10 +2368,16 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
       }).catch(() => {});
     }
 
+    // Network switch (Ethereum by default; Sepolia for testing)
+    document.querySelectorAll('.net-btn').forEach(b => b.addEventListener('click', () => {
+      if (b.getAttribute('data-net') !== NET.key) setNetwork(b.getAttribute('data-net'));
+    }));
+    setNetwork(NET.key, false);
+
     // Hashchange listener
     window.addEventListener('hashchange', () => render());
 
-    // Initial render, then fill in what Sepolia says, and keep it fresh while the tab is visible.
+    // Initial render, then fill in what the chain says, and keep it fresh while the tab is visible.
     render();
     refreshLive();
     setInterval(() => {
