@@ -2,13 +2,14 @@
   "kind": "evm_contracts",
   "contracts": [
     {
-      "contract": "StackReceiver",
+      "contract": "RemoteStacker",
       "constructorArgs": [
-        "0xD34a99Bc0f67aE1bbd63C660e6d0b0dd03E263B7",
+        "0x5F7Bb59365ce557C26dbcAa4EE9d39A4b95B7127",
+        "0x1999a54f573dAc75ce8Ef62A555dba418c9B3D10",
         "0x9Efa934D9fAd4AE28c998a40195646b965a97247",
-        "0x1a44076050125825900e736c501f859c50fE728c"
+        "30101"
       ]
     }
   ],
-  "notes": "imd/acc on Ethereum mainnet, third launch: one contract, the StackReceiver, the Ethereum end of imd/acc's multichain route. Cashback paid on other chains (Robinhood Chain first) waits in a RemoteStacker there and is sent to Ethereum through IMD's own LayerZero bridge (IMD is a standard OFT, 6 shared decimals) as a send-and-call: the bridged IMD is minted to this contract and the LayerZero endpoint (0x1a44...728c, eid 30101) then calls lzCompose with the list of traders and amounts, abi.encode(address[], uint256[]). The receiver deposits each amount into the sIMD vault (0x9efa...7247, ERC-4626, owner renounced) for its trader; a deposit the vault refuses pays that trader plain IMD instead; it keeps no IMD after a delivery. It accepts lzCompose only from the endpoint and only for composes the IMD token (0xd34a...63b7) queued, and requires the listed amounts to add up to the IMD that arrived, so whoever sends a message pays out only its own IMD. No owner, admin, pause or upgrade; the constructor makes no external call (the first delivery checks sIMD.asset() == IMD and approves the vault once). The live Stacker (0x0690...f4f0, launch #1409) and ProjectRegistry (0x7f53...7faa, launch #1495) are not redeployed. The RemoteStacker is a later launch on Robinhood Chain, naming this contract's address. Test doubles under test/mocks and test/trial are not deployed."
+  "notes": "imd/acc on Robinhood Chain (chain 4663), first launch: one contract, the RemoteStacker, the Robinhood Chain end of imd/acc's multichain route. A project here calls the same credit(trader, imdAmount) as on Ethereum; the IMD (0x5f7b...7127, a standard LayerZero OFT, 6 shared decimals) waits in this contract per trader, and anyone flushes up to 50 recipients to Ethereum through IMD's own bridge as a send-and-call to the live StackReceiver 0x1999...3d10 (launch #1529), which deposits each amount into the sIMD vault (0x9efa...7247, named here only so it is refused as a trader) for its trader. The flusher pays the bridge fee in Robinhood Chain's gas token (quoteFlush) and earns a tip of 2% per 12 hours waited, at most 2%, taken only from the whole bridge steps that leave; dust stays waiting, untipped. The contract builds the executor options itself (lzReceive 250,000 gas; lzCompose 200,000 + 80,000 per recipient) and sends to endpoint id 30101. A smart-contract wallet is paid plain IMD here at once unless it names an Ethereum recipient with setEthereumRecipient; EIP-7702 delegations are plain wallets. Queued(project, trader, recipient, imd) is the points record on this chain. No owner, admin, pause or upgrade; nobody can withdraw, redirect or freeze anything; the constructor makes no external call. Test doubles under test/mocks and test/trial are not deployed."
 }
