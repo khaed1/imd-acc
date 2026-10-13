@@ -83,7 +83,7 @@ contract RemoteQueueHandler is Test {
         uint256 amount = _amount(raw, edge);
         uint64[6] memory clocks = _clocks();
         uint256 oldOwed = owed(recipient);
-        uint256 oldClock = remote.waitingSince(recipient);
+        uint256 oldWeight = remote.arrivalWeight(recipient);
 
         if (amount > 0) {
             vm.expectEmit(true, true, false, true, address(remote));
@@ -114,13 +114,17 @@ contract RemoteQueueHandler is Test {
             if (oldOwed == 0) {
                 assertEq(since, block.timestamp, "fresh queue must start now");
             } else {
-                // Work in elapsed token-seconds instead of reproducing the arrival formula.
-                uint256 oldAge = block.timestamp - oldClock;
-                if (oldAge > PERIOD) oldAge = PERIOD;
-                uint256 age = block.timestamp - since;
+                // Work in elapsed token-seconds, exactly: the fresh amount brings none, and the old
+                // balance keeps all of its own (capped at the tip period), with no rounding.
+                uint256 oldAged = block.timestamp * oldOwed - oldWeight;
+                if (oldAged > PERIOD * oldOwed) oldAged = PERIOD * oldOwed;
                 uint256 balance = oldOwed + amount;
-                assertLe(age * balance, oldAge * oldOwed, "fresh credit acquired old age");
-                assertGt((age + 1) * balance, oldAge * oldOwed, "lost more than one second");
+                uint256 aged = block.timestamp * balance - remote.arrivalWeight(recipient);
+                assertEq(aged, oldAged, "a credit changed the balance's waited token-seconds");
+                // The displayed clock is that average, rounded up by less than a second.
+                uint256 age = block.timestamp - since;
+                assertLe(age * balance, oldAged, "fresh credit acquired old age");
+                assertGt((age + 1) * balance, oldAged, "lost more than one second");
             }
         }
     }

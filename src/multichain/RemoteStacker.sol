@@ -20,11 +20,12 @@ import {
 /// Ethereum, and the IMD waits in this contract, per trader, until anyone `flush`es it: the waiting
 /// IMD is sent to Ethereum through IMD's own LayerZero bridge (IMD is an OFT) with the list of
 /// traders and amounts, and the StackReceiver there deposits it into the sIMD vault for each trader.
-/// `Queued(project, trader, imd)` is emitted at once and is the points record on this chain.
+/// `Queued(project, trader, recipient, imd)` is emitted at once and is the points record on this
+/// chain.
 ///
 /// Whoever flushes pays the bridge fee (in this chain's gas token) and earns a tip in IMD from each
 /// trader flushed: 2% of their waiting cashback per 12 hours waited, at most 2%, computed by this
-/// contract. The trader always receives at least 98%. imd/acc takes nothing; nobody can withdraw,
+/// contract from the exact amount-weighted waiting time (no per-credit rounding). The trader always receives at least 98%. imd/acc takes nothing; nobody can withdraw,
 /// redirect or freeze anything: no owner, no admin, no pause, no upgrade. The only way out is to the
 /// StackReceiver fixed at deployment.
 ///
@@ -66,9 +67,12 @@ contract RemoteStacker is ReentrancyGuard {
     uint128 public constant COMPOSE_BASE_GAS = 200_000;
     uint128 public constant COMPOSE_GAS_PER_TRADER = 80_000;
 
-    /// @notice IMD waiting for each Ethereum recipient, and the amount-weighted time it arrived.
+    /// @notice IMD waiting for each Ethereum recipient, and the waiting clock as an exact sum: each
+    /// amount times the time it arrived (Σ amount × timestamp), so the amount-weighted arrival time
+    /// is `arrivalWeight / waiting`. Keeping the sum instead of a rounded average means no credit,
+    /// however small or frequent, moves the clock by more than its own weight.
     mapping(address => uint256) public waiting;
-    mapping(address => uint64) public waitingSince;
+    mapping(address => uint256) public arrivalWeight;
     /// @notice Where a smart-contract wallet's cashback should go on Ethereum (set by itself).
     mapping(address => address) public ethereumRecipient;
     /// @notice IMD queued by each project, across all traders, and in total (points records).
@@ -141,14 +145,11 @@ contract RemoteStacker is ReentrancyGuard {
         // old clock and old cashback never loses its waiting time. A balance that has waited past
         // the tip's cap counts as having waited exactly the cap (its tip is capped anyway), so the
         // new amount's share of the clock starts at zero rather than inheriting a very old one.
-        uint256 since = waitingSince[recipient];
-        if (before > 0 && block.timestamp - since > TIP_PERIOD) {
-            since = block.timestamp - TIP_PERIOD;
+        uint256 weight = arrivalWeight[recipient];
+        if (before > 0 && block.timestamp * before - weight > TIP_PERIOD * before) {
+            weight = (block.timestamp - TIP_PERIOD) * before;
         }
-        // Round arrival up (waiting time down), so a sub-second shift cannot give fresh
-        // cashback an immediate tip. Any rounding favors the trader.
-        waitingSince[recipient] =
-            uint64(Math.ceilDiv(since * before + block.timestamp * imdAmount, before + imdAmount));
+        arrivalWeight[recipient] = weight + block.timestamp * imdAmount;
         waiting[recipient] = before + imdAmount;
         projectQueued[msg.sender] += imdAmount;
         totalQueued += imdAmount;
@@ -184,13 +185,30 @@ contract RemoteStacker is ReentrancyGuard {
 
     // ================================================================ flush
 
-    /// @notice The tip waiting cashback would pay now, in basis points of the amount: 2% per 12
-    /// hours waited, at most 2%.
+    /// @notice The amount-weighted time the recipient's waiting cashback arrived, rounded up (0 when
+    /// nothing waits). For display: the tip itself is computed from the exact sum.
+    function waitingSince(address recipient) public view returns (uint64) {
+        uint256 w = waiting[recipient];
+        if (w == 0) return 0;
+        return uint64(Math.ceilDiv(arrivalWeight[recipient], w));
+    }
+
+    /// @notice The tip waiting cashback would pay now, in whole basis points of the amount (rounded
+    /// down): 2% per 12 hours waited, at most 2%. For display: a flush computes the tip amount from
+    /// the exact waited time.
     function tipBps(address recipient) public view returns (uint256) {
-        if (waiting[recipient] == 0) return 0;
-        uint256 waited = block.timestamp - waitingSince[recipient];
-        if (waited >= TIP_PERIOD) return TIP_BPS;
-        return TIP_BPS * waited / TIP_PERIOD;
+        (uint256 waitedSum, uint256 w) = _waited(recipient);
+        if (w == 0) return 0;
+        return TIP_BPS * waitedSum / (TIP_PERIOD * w);
+    }
+
+    /// @dev The recipient's waited time as a fraction `waitedSum / w` seconds, capped at
+    /// `TIP_PERIOD`: `waitedSum` is Σ amount × (now − arrival) = now × waiting − arrivalWeight.
+    function _waited(address recipient) internal view returns (uint256 waitedSum, uint256 w) {
+        w = waiting[recipient];
+        if (w == 0) return (0, 0);
+        waitedSum = block.timestamp * w - arrivalWeight[recipient];
+        if (waitedSum > TIP_PERIOD * w) waitedSum = TIP_PERIOD * w;
     }
 
     /// @dev One flush, worked out before anything changes.
@@ -240,9 +258,13 @@ contract RemoteStacker is ReentrancyGuard {
 
         for (uint256 i; i < plan.to.length; ++i) {
             address r = plan.to[i];
-            uint256 left = waiting[r] - plan.amounts[i] - plan.tips[i];
+            uint256 w = waiting[r];
+            uint256 left = w - plan.amounts[i] - plan.tips[i];
             waiting[r] = left;
-            if (left == 0) waitingSince[r] = 0;
+            // The dust left behind keeps the balance's average arrival time (its weight rounded up:
+            // a later clock, a smaller tip, in the trader's favor).
+            arrivalWeight[r] =
+                left == 0 ? 0 : Math.mulDiv(arrivalWeight[r], left, w, Math.Rounding.Ceil);
         }
 
         (MessagingReceipt memory receipt,) = IOFT(address(IMD)).send{value: msg.value}(
@@ -271,7 +293,11 @@ contract RemoteStacker is ReentrancyGuard {
             uint256 w = waiting[r];
             if (w == 0 || _listed(plan.to, n, r)) continue;
             uint256 leaving = w / step * step; // whole steps; the dust stays waiting, untipped
-            uint256 share = leaving * tipBps(r) / BPS / step * step;
+            // The tip from the exact waited time: leaving × 2% × waited / 12 hours, rounded down to
+            // a step (no whole-bps rounding first, so a tiny credit can't shave the tip by a bps).
+            (uint256 waitedSum,) = _waited(r);
+            uint256 share =
+                Math.mulDiv(leaving, TIP_BPS * waitedSum, BPS * TIP_PERIOD * w) / step * step;
             uint256 amount = leaving - share;
             if (amount == 0) continue;
             plan.to[n] = r;
