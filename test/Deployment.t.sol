@@ -36,6 +36,9 @@ contract DeploymentTest is Test {
     /// Chain (the same OFT over IMD's bridge).
     address internal constant ETH_ENDPOINT = 0x1a44076050125825900e736c501f859c50fE728c;
     address internal constant ROBINHOOD_IMD = 0x5F7Bb59365ce557C26dbcAa4EE9d39A4b95B7127;
+    /// @dev The live RemoteStacker on Robinhood Chain (launch #1537), which its registry names.
+    address internal constant ROBINHOOD_REMOTE_STACKER = 0x4De07c2fa46D5d6ED9CEB3f38ec56d3461b3E898;
+    address internal constant MAINNET_RECEIVER = 0x1999a54f573dAc75ce8Ef62A555dba418c9B3D10;
     uint32 internal constant ETH_EID = 30101;
 
     /// @dev main: the Stacker alone, on mainnet. sepolia: either the Stacker on the test pair, then
@@ -64,7 +67,7 @@ contract DeploymentTest is Test {
             string[] memory a = vm.parseJsonStringArray(json, ".contracts[0].constructorArgs");
             assertEq(a.length, 4);
             assertEq(vm.parseAddress(a[0]), ROBINHOOD_IMD, "IMD on Robinhood Chain");
-            assertTrue(vm.parseAddress(a[1]) != address(0), "the StackReceiver on Ethereum");
+            assertEq(vm.parseAddress(a[1]), MAINNET_RECEIVER, "the live StackReceiver on Ethereum");
             assertEq(vm.parseAddress(a[2]), MAINNET_SIMD, "the Ethereum vault, refused as trader");
             assertEq(vm.parseUint(a[3]), ETH_EID, "Ethereum's endpoint id");
             return;
@@ -74,6 +77,10 @@ contract DeploymentTest is Test {
             string[] memory a = vm.parseJsonStringArray(json, ".contracts[0].constructorArgs");
             if (vm.parseAddress(a[1]) == MAINNET_IMD) {
                 _mainnetRegistryArgs(a);
+                return;
+            }
+            if (vm.parseAddress(a[1]) == ROBINHOOD_IMD) {
+                _robinhoodRegistryArgs(a);
                 return;
             }
             string[] memory reg = _sepoliaRegistryArgs(json, ".contracts[0].constructorArgs");
@@ -108,6 +115,19 @@ contract DeploymentTest is Test {
         assertEq(vm.parseUint(r[4]), 1, "questions filed under chain 1");
         assertEq(vm.parseUint(r[5]), 20e18, "agreed mainnet bond: 20 IMD");
         assertEq(vm.parseUint(r[6]), 7 days, "agreed mainnet cooldown: 7 days");
+    }
+
+    /// @dev The Robinhood Chain registry: paid in Robinhood's IMD, naming the live RemoteStacker,
+    /// questions filed under chain 4663, with mainnet's bond and cooldown.
+    function _robinhoodRegistryArgs(string[] memory r) internal pure {
+        assertEq(r.length, 7);
+        assertEq(vm.parseAddress(r[0]), INTAKE_V2, "intake");
+        assertEq(vm.parseAddress(r[1]), ROBINHOOD_IMD, "oracle asset: IMD on Robinhood Chain");
+        assertEq(vm.parseAddress(r[2]), ROBINHOOD_REMOTE_STACKER, "the live RemoteStacker");
+        assertEq(vm.parseAddress(r[3]), ORACLE_SIGNER, "oracle signer");
+        assertEq(vm.parseUint(r[4]), 4663, "questions filed under chain 4663");
+        assertEq(vm.parseUint(r[5]), 20e18, "agreed bond: 20 IMD");
+        assertEq(vm.parseUint(r[6]), 7 days, "agreed cooldown: 7 days");
     }
 
     /// @dev Checks a Sepolia registry's arguments except the Stacker (index 2), left to the caller.

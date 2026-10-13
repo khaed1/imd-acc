@@ -131,9 +131,14 @@ The registry `main` will use on mainnet: test run 5's with version 3.1 of the pa
 |---|---|---|
 | ProjectRegistry | [`0x30a3bb4d75989cb19f83607abc2dffe52a253384`](https://sepolia.etherscan.io/address/0x30a3bb4d75989cb19f83607abc2dffe52a253384) | Stacker `0x0457…314d`, fee `ORACLE_FEE()` 0.5 test IMD of `0x44a1…f89a` (read live from Intake v2), challenge bond 5 test IMD, cooldown 1 hour, panel 15/11, 1-day expiry, one beneficiary handoff per day, owed bonds, owner-only applications. |
 
-### Robinhood Chain (planned: the multichain route)
+### Robinhood Chain (live, launch #1537, block 87,379,080)
 
-The multichain route ([design](docs/design.md#multichain-cashback-from-other-chains)): a **RemoteStacker** on Robinhood Chain (chain 4663) with the same `credit(trader, imdAmount)`, whose waiting cashback anyone can `flush` to Ethereum through IMD's own LayerZero bridge for a tip of up to 2%, and a **StackReceiver** on Ethereum that deposits each delivery into the sIMD vault for its trader. The StackReceiver is **live on Ethereum** (launch #1529, `0x1999…3d10`, table below); the RemoteStacker launches next with its address ([`jobs/15-robinhood-remotestacker-launch.md`](jobs/15-robinhood-remotestacker-launch.md)), then a Robinhood Chain ProjectRegistry.
+The multichain route ([design](docs/design.md#multichain-cashback-from-other-chains)): a **RemoteStacker** on Robinhood Chain (chain 4663) with the same `credit(trader, imdAmount)`, whose waiting cashback anyone can `flush` to Ethereum through IMD's own LayerZero bridge for a tip of up to 2%, and a **StackReceiver** on Ethereum (launch #1529, table below) that deposits each delivery into the sIMD vault for its trader. Both are live since 2026-10-13 and the route was tested live the same day: two flushes from Robinhood Chain reached the sIMD vault on Ethereum within about two minutes each ([history, section 52](docs/history.md#52-the-multichain-route-tested-live-robinhood-chain-to-the-simd-vault-twice-2026-10-13)). Next: a Robinhood Chain ProjectRegistry.
+
+| Contract | Address | Notes |
+|---|---|---|
+| IMD | [`0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127`](https://explorer.robinhoodchain.com/address/0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127) | IMD on Robinhood Chain: the same LayerZero OFT, 6 shared decimals. |
+| RemoteStacker | [`0x4de07c2fa46d5d6ed9ceb3f38ec56d3461b3e898`](https://repo.sourcify.dev/4663/0x4De07c2fa46D5d6ED9CEB3f38ec56d3461b3E898) | **Live** since 2026-10-13 (launch #1537, block 87,379,080, tx `0xd409df2e670b0e6cd0fbd87b1bd7d7951c77f135de6cfa8d446f78ee10616fb4`), source verified on Sourcify. Sends to the StackReceiver `0x1999…3d10` on Ethereum (eid 30101). The pinned code plus IMD's audit fixes (Ethereum's IMD and endpoint refused as traders; the waiting clock rounded in the trader's favour), delivered to [launch-1537](https://github.com/identity-md-launches/launch-1537-launch-imd-acc-s-remotestacker-robinhood) (commit `4cfaa55d`) ([history, section 51](docs/history.md#51-robinhood-chain-remotestacker-live-launch-1537-2026-10-13)). Nothing queued yet. |
 
 ### Ethereum mainnet (live, launch #1409, block 26,176,629)
 
