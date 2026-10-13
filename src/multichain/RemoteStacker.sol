@@ -4,6 +4,7 @@ pragma solidity 0.8.26;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {
     IOFT,
     SendParam,
@@ -43,6 +44,11 @@ contract RemoteStacker is ReentrancyGuard {
     address public immutable VAULT;
     /// @notice LayerZero endpoint id of Ethereum (30101).
     uint32 public immutable DST_EID;
+
+    /// @dev Fixed Ethereum infrastructure cannot recover cashback delivered as sIMD. Refuse
+    /// these destinations even when they have no code on the source chain.
+    address internal constant ETHEREUM_IMD = 0xD34a99Bc0f67aE1bbd63C660e6d0b0dd03E263B7;
+    address internal constant ETHEREUM_ENDPOINT = 0x1a44076050125825900e736c501f859c50fE728c;
 
     /// @notice The tip: `TIP_BPS` of the waiting amount after `TIP_PERIOD` of waiting, growing linearly
     /// from zero and capped there.
@@ -113,7 +119,7 @@ contract RemoteStacker is ReentrancyGuard {
         if (trader == address(0)) revert ZeroTrader();
         if (
             trader == address(this) || trader == address(IMD) || trader == RECEIVER
-                || trader == VAULT
+                || trader == VAULT || trader == ETHEREUM_IMD || trader == ETHEREUM_ENDPOINT
         ) revert InvalidTrader();
         if (imdAmount == 0) return 0;
 
@@ -139,8 +145,10 @@ contract RemoteStacker is ReentrancyGuard {
         if (before > 0 && block.timestamp - since > TIP_PERIOD) {
             since = block.timestamp - TIP_PERIOD;
         }
+        // Round arrival up (waiting time down), so a sub-second shift cannot give fresh
+        // cashback an immediate tip. Any rounding favors the trader.
         waitingSince[recipient] =
-            uint64((since * before + block.timestamp * imdAmount) / (before + imdAmount));
+            uint64(Math.ceilDiv(since * before + block.timestamp * imdAmount, before + imdAmount));
         waiting[recipient] = before + imdAmount;
         projectQueued[msg.sender] += imdAmount;
         totalQueued += imdAmount;
@@ -153,7 +161,7 @@ contract RemoteStacker is ReentrancyGuard {
     function setEthereumRecipient(address recipient) external {
         if (
             recipient == address(this) || recipient == address(IMD) || recipient == RECEIVER
-                || recipient == VAULT
+                || recipient == VAULT || recipient == ETHEREUM_IMD || recipient == ETHEREUM_ENDPOINT
         ) revert InvalidRecipient();
         ethereumRecipient[msg.sender] = recipient;
         emit EthereumRecipientSet(msg.sender, recipient);
