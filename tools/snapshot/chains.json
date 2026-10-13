@@ -25,5 +25,24 @@
       "https://ethereum-rpc.publicnode.com",
       "https://eth.drpc.org"
     ]
+  },
+  {
+    "name": "robinhood",
+    "id": 4663,
+    "kind": "remote",
+    "stacker": "0x4de07c2fa46d5d6ed9ceb3f38ec56d3461b3e898",
+    "stackerBlock": 87379080,
+    "registry": "0x814da7f2469e3e37158ab7e031a31b3004d9bca1",
+    "registryBlock": 87507987,
+    "vault": {
+      "address": "0x9efa934d9fad4ae28c998a40195646b965a97247",
+      "decimals": 24,
+      "chainId": 1
+    },
+    "confirmations": 600,
+    "rpcs": [
+      "https://rpc.mainnet.chain.robinhood.com",
+      "https://robinhood-rpc.publicnode.com"
+    ]
   }
 ]

@@ -33,3 +33,14 @@ LIVE_OK=1 TARGET=https://ethereum-sepolia-rpc.publicnode.com node trial.mjs plea
 ```
 
 Steps: `plea` (approve the fee, `applyListing` for PLEA's hook at 50 bps), `selfcredit` (the same for `SelfCredit`), `apply` (`PROJECT`, `NAME`, `URL`, optional `RATE` and `BENEFICIARY`), `challenge` (`PROJECT`, default PLEA's hook: mint 10 oracle test IMD and approve fee + bond only when the wallet is short, then `challengeForBeneficiary` from the project page; a failed gas estimate is retried, since a public RPC node behind the head may not see the approval yet). Each step caps how many transactions it may send. On the fork, `fork-answer.sh` plays the panel's answer between steps (and `cast rpc evm_increaseTime 3601` passes the cooldown).
+
+## Robinhood Chain on a fork
+
+`robinhood-fork.mjs` runs the Robinhood Chain pages through the site on a local fork, with the test wallet impersonated (no key): Your Stack's "Flush my cashback now" (the wallet starts without Robinhood Chain, so the site must add it with `wallet_addEthereumChain`), then an application from the Apply page. Fork from the official RPC, which serves old logs (publicnode refuses them), and restart the fork between runs (a run flushes the wallet's waiting cashback).
+
+```sh
+anvil --fork-url https://rpc.mainnet.chain.robinhood.com --port 8546 --silent &
+ANVIL=http://127.0.0.1:8546 NETWORK=robinhood ACCOUNT=0x4b91078b2374c956a65f7af0999cae0a935e6821 SITE=http://127.0.0.1:8787/ node robinhood-fork.mjs
+```
+
+`lib.mjs` takes `NETWORK` (the site's network for any check, Sepolia by default), routes the Robinhood Chain RPC hosts to the fork too, and answers `eth_chainId` with the fork's chain id.

@@ -1,5 +1,6 @@
-// Browser harness for the imd/acc Sepolia site: live reads, or every RPC host and an injected
-// EIP-1193/EIP-6963 test wallet routed to a local anvil Sepolia fork.
+// Browser harness for the imd/acc site: live reads, or every RPC host and an injected
+// EIP-1193/EIP-6963 test wallet routed to a local anvil fork (Sepolia by default; NETWORK=robinhood
+// with a Robinhood Chain fork).
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 const require = createRequire("/opt/node-tools/node_modules/");
@@ -7,7 +8,8 @@ const { chromium } = require("playwright");
 
 export const ANVIL = process.env.ANVIL || "http://127.0.0.1:8545";
 export const ACCOUNT = (process.env.ACCOUNT || "0xa987EF2AA4d2c0558CC6405F1A8253507274Dc5d").toLowerCase();
-export const RPC_HOSTS = /rpc\.sepolia\.ethpandaops\.io|sepolia\.rpc\.sentio\.xyz|ethereum-sepolia-rpc\.publicnode\.com|sepolia\.drpc\.org/;
+export const RPC_HOSTS = /rpc\.sepolia\.ethpandaops\.io|sepolia\.rpc\.sentio\.xyz|ethereum-sepolia-rpc\.publicnode\.com|sepolia\.drpc\.org|rpc\.mainnet\.chain\.robinhood\.com|robinhood-rpc\.publicnode\.com/;
+export const NETWORK = process.env.NETWORK || "sepolia"; // the site's network for the checks
 const AXE = readFileSync(new URL("./node_modules/axe-core/axe.min.js", import.meta.url), "utf8");
 
 export async function anvil(method, params = []) {
@@ -44,7 +46,7 @@ const WALLET_INIT = `(() => {
     removeListener(ev, f) { listeners[ev] = (listeners[ev] || []).filter((g) => g !== f); return provider; },
   };
   window.__testWallet = { emit };
-  try { if (!localStorage.getItem("imd_acc_network")) localStorage.setItem("imd_acc_network", "sepolia"); } catch (e) {} // the checks run against Sepolia
+  try { if (!localStorage.getItem("imd_acc_network")) localStorage.setItem("imd_acc_network", "__NETWORK__"); } catch (e) {} // the checks' network (Sepolia by default)
   if (!window.ethereum) window.ethereum = provider; // sites that read window.ethereum, like MetaMask and Rabby set it
   const info = Object.freeze({ uuid: "7e57c0de-0000-4000-8000-000000000001", name: "Test Wallet", rdns: "test.wallet",
     icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'/%3E" });
@@ -53,7 +55,9 @@ const WALLET_INIT = `(() => {
   announce();
 })();`;
 
-// opts: { width, height, theme: "light"|"dark", fork: bool, wallet: bool, rejectNext: fn }
+// opts: { width, height, theme: "light"|"dark", fork: bool, wallet: bool, rejectNext: fn, unknownChain: bool }
+// unknownChain: the wallet answers the first wallet_switchEthereumChain with 4902, as a wallet that
+// doesn't know Robinhood Chain yet does, so the site must call wallet_addEthereumChain.
 export async function newPage(browser, opts = {}) {
   const context = await browser.newContext({
     viewport: { width: opts.width || 1280, height: opts.height || 900 },
@@ -61,7 +65,8 @@ export async function newPage(browser, opts = {}) {
     reducedMotion: "reduce",
   });
   const page = await context.newPage();
-  const log = { errors: [], failed: [], rpcCalls: 0, txs: [], methods: {} };
+  const log = { errors: [], failed: [], rpcCalls: 0, txs: [], methods: {}, walletMethods: [] };
+  let knowsChain = !opts.unknownChain;
   page.on("pageerror", (e) => log.errors.push(`pageerror: ${e.message}`));
   page.on("console", (m) => { if (m.type() === "error") log.errors.push(`console: ${m.text()}`); });
   page.on("requestfailed", (r) => log.failed.push(`${r.url()} ${r.failure()?.errorText}`));
@@ -83,17 +88,21 @@ export async function newPage(browser, opts = {}) {
   if (opts.wallet) {
     await page.exposeFunction("__walletRpc", async (s) => {
       const { method, params } = JSON.parse(s);
+      log.walletMethods.push(method);
       try {
         switch (method) {
           case "eth_requestAccounts":
           case "eth_accounts":
             return JSON.stringify({ result: [ACCOUNT] });
           case "eth_chainId":
-            return JSON.stringify({ result: "0xaa36a7" });
+            return JSON.stringify({ result: knowsChain ? await anvil("eth_chainId") : "0x1" });
           case "net_version":
-            return JSON.stringify({ result: "11155111" });
+            return JSON.stringify({ result: String(Number(await anvil("eth_chainId"))) });
           case "wallet_switchEthereumChain":
+            if (!knowsChain) return JSON.stringify({ error: { code: 4902, message: "Unrecognized chain ID. Try adding the chain using wallet_addEthereumChain first." } });
+            return JSON.stringify({ result: null });
           case "wallet_addEthereumChain":
+            knowsChain = true;
             return JSON.stringify({ result: null });
           case "wallet_requestPermissions":
           case "wallet_getPermissions":
@@ -117,7 +126,7 @@ export async function newPage(browser, opts = {}) {
         return JSON.stringify({ error: { code: -32603, message: String(e) } });
       }
     });
-    await page.addInitScript(WALLET_INIT);
+    await page.addInitScript(WALLET_INIT.replace("__NETWORK__", NETWORK));
   }
   return { context, page, log };
 }

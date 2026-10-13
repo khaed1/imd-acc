@@ -312,7 +312,7 @@ h1:focus, .page-title:focus, .hero-title:focus, h2:focus, h3:focus {
   font-size: 0.85rem;
 }
 
-/* Network switch (Ethereum | Sepolia) */
+/* Network switch (Ethereum | Robinhood | Sepolia) */
 .net-switch {
   display: inline-flex;
   border: 1px solid var(--border-subtle);
@@ -326,7 +326,7 @@ h1:focus, .page-title:focus, .hero-title:focus, h2:focus, h3:focus {
   font-size: 0.74rem;
   font-weight: 600;
   letter-spacing: 0.03em;
-  padding: 5px 10px;
+  padding: 5px 8px;
   border-radius: var(--radius-full);
   border: 1px solid transparent;
   background: transparent;
@@ -1558,11 +1558,9 @@ main {
   }
 }
 
-@media (max-width: 640px) {
-  .brand-badge {
-    display: none;
-  }
-
+/* Three networks: below 1280px the switch shows short labels (the badge still names the network),
+   below 720px the badge goes too, and below 400px the header tightens, so it never scrolls sideways. */
+@media (max-width: 1279px) {
   .net-long {
     display: none;
   }
@@ -1570,7 +1568,55 @@ main {
   .net-short {
     display: inline;
   }
+}
 
+@media (max-width: 720px) {
+  .brand-badge {
+    display: none;
+  }
+}
+
+@media (max-width: 400px) {
+  .net-btn {
+    padding: 4px 5px !important;
+  }
+
+  .header-actions {
+    gap: 3px !important;
+  }
+
+  .header-actions .btn-icon {
+    width: 32px !important;
+    height: 32px !important;
+  }
+}
+
+@media (max-width: 359px) {
+  .brand {
+    font-size: 1.05rem;
+    gap: 4px !important;
+  }
+
+  .header-inner {
+    gap: 4px !important;
+  }
+
+  .net-btn {
+    padding: 4px 4px !important;
+    letter-spacing: 0;
+  }
+
+  .header-actions {
+    gap: 2px !important;
+  }
+
+  .header-actions .btn-icon {
+    width: 30px !important;
+    height: 30px !important;
+  }
+}
+
+@media (max-width: 640px) {
   .net-btn {
     padding: 4px 7px;
     font-size: 0.7rem;
