@@ -199,6 +199,55 @@ contract StackReceiverMainnetForkTest is Test {
         receiver.lzCompose(IMD, guid, composed, executor, "");
     }
 
+    function test_fork_composeRejectsValueWithoutConsumingTheQueue() public onlyFork {
+        // A CREATE address on the fork may already have been funded before deployment.
+        uint256 nativeBefore = address(receiver).balance;
+        address[] memory traders = new address[](1);
+        traders[0] = makeAddr("value compose trader");
+        bytes memory payload = abi.encode(traders, _one(2e18));
+        bytes32 guid = keccak256("value compose");
+        bytes memory oftMessage = abi.encodePacked(
+            bytes32(uint256(uint160(address(receiver)))),
+            uint64(2e18 / 1e12),
+            bytes32(uint256(uint160(remote))),
+            payload
+        );
+        vm.prank(ENDPOINT);
+        ILiveOFT(IMD)
+            .lzReceive(
+                Origin(RH_EID, bytes32(uint256(uint160(RH_IMD))), 101),
+                guid,
+                oftMessage,
+                executor,
+                ""
+            );
+        bytes memory composed = abi.encodePacked(
+            uint64(101), RH_EID, uint256(2e18), bytes32(uint256(uint160(remote))), payload
+        );
+        bytes32 queued = ILiveEndpoint(ENDPOINT).composeQueue(IMD, address(receiver), guid, 0);
+        assertEq(queued, keccak256(composed));
+        vm.deal(executor, 1);
+        vm.expectRevert(StackReceiver.UnexpectedValue.selector);
+        vm.prank(executor);
+        ILiveEndpoint(ENDPOINT).lzCompose{value: 1}(IMD, address(receiver), guid, 0, composed, "");
+        assertEq(executor.balance, 1);
+        assertEq(address(receiver).balance, nativeBefore);
+        assertEq(IERC20(IMD).balanceOf(address(receiver)), 2e18);
+        assertEq(receiver.totalDelivered(), 0);
+        assertEq(ILiveEndpoint(ENDPOINT).composeQueue(IMD, address(receiver), guid, 0), queued);
+
+        vm.prank(executor);
+        ILiveEndpoint(ENDPOINT).lzCompose(IMD, address(receiver), guid, 0, composed, "");
+        assertGt(ILiveVault(SIMD).balanceOf(traders[0]), 0);
+        assertEq(IERC20(IMD).balanceOf(address(receiver)), 0);
+        assertEq(receiver.totalDelivered(), 2e18);
+        assertEq(receiver.deliveredFrom(RH_EID), 2e18);
+        assertEq(address(receiver).balance, nativeBefore);
+        vm.prank(executor);
+        vm.expectRevert();
+        ILiveEndpoint(ENDPOINT).lzCompose(IMD, address(receiver), guid, 0, composed, "");
+    }
+
     function _one(uint256 x) internal pure returns (uint256[] memory a) {
         a = new uint256[](1);
         a[0] = x;
