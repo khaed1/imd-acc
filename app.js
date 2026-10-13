@@ -1565,7 +1565,8 @@
   // --- Docs (#/docs and #/docs/<section>): GitBook-style sections ---
   const EXPLORER = {
     sepolia: 'https://sepolia.etherscan.io/address/',
-    mainnet: 'https://etherscan.io/address/'
+    mainnet: 'https://etherscan.io/address/',
+    robinhood: 'https://repo.sourcify.dev/4663/'
   };
 
   function docTable(headers, rows) {
@@ -1589,8 +1590,9 @@
       </div>`;
   }
 
-  function docAddr(addr, mainnet = false) {
-    return `<a class="mono" style="white-space: nowrap;" href="${mainnet ? EXPLORER.mainnet : EXPLORER.sepolia}${addr}" target="_blank" rel="noopener noreferrer" title="${addr}">${shortAddr(addr)} &nearr;</a>`;
+  function docAddr(addr, chain = false) {
+    const base = chain === 'robinhood' ? EXPLORER.robinhood : chain ? EXPLORER.mainnet : EXPLORER.sepolia;
+    return `<a class="mono" style="white-space: nowrap;" href="${base}${addr}" target="_blank" rel="noopener noreferrer" title="${addr}">${shortAddr(addr)} &nearr;</a>`;
   }
 
   function docContract(name, pill, pillClass, addr, desc, explorer) {
@@ -1674,7 +1676,7 @@ error ZeroShares();`;
               <li><strong>sIMD vault</strong>: IMD's own ERC-4626 staking vault. imd/acc only deposits into it.</li>
             </ul>
             <h2 id="status">Where it stands</h2>
-            <p>Both contracts are live on Ethereum mainnet: the Stacker (launch #1409, 2026-10-12), against the real IMD and sIMD, and the ProjectRegistry (launch #1495, 2026-10-13), which decides listings and points. Sepolia keeps a test Stacker and the test run 6 registry (launch #1463) for integrators. See <a href="#/docs/contracts">Contracts</a> for every address and <a href="#/docs/roadmap">Roadmap</a> for what comes next.</p>
+            <p>Both contracts are live on Ethereum mainnet: the Stacker (launch #1409, 2026-10-12), against the real IMD and sIMD, and the ProjectRegistry (launch #1495, 2026-10-13), which decides listings and points. The <a href="#/docs/multichain">multichain route</a> is live too: a RemoteStacker on Robinhood Chain (launch #1537) and a StackReceiver on Ethereum (launch #1529), tested end to end. Sepolia keeps a test Stacker and the test run 6 registry (launch #1463) for integrators. See <a href="#/docs/contracts">Contracts</a> for every address and <a href="#/docs/roadmap">Roadmap</a> for what comes next.</p>
             <div class="docs-callout"><p>imd/acc is inspired by TokenWorks' btc/acc: the same idea of turning trading activity into a growing stack, here in staked IMD.</p></div>`
         },
         {
@@ -1903,6 +1905,13 @@ error ZeroShares();`;
               ${docContract('sIMD vault', 'Mainnet', 'pill-live', ADDRESSES.MAINNET_SIMD, 'ERC-4626 staking vault. Owner renounced: nobody can pause it or sweep its funds.', EXPLORER.mainnet)}
               ${docContract('Stacker', 'Live', 'pill-live', ADDRESSES.MAINNET_STACKER, 'Launch #1409, block 26,176,629: the cashback funnel against the real IMD and sIMD, audited by the IMD swarm. Source verified on Sourcify.', EXPLORER.mainnet)}
               ${docContract('ProjectRegistry', 'Live', 'pill-live', ADDRESSES.MAINNET_REGISTRY, 'Launch #1495, block 26,180,923: the project list decided by IdentityMD oracle panels (rules v3.1, owner-only applications), the code of Sepolia test run 6 plus one guard (the registry itself is refused as beneficiary). Bond 20 IMD, cooldown 7 days. Source verified on Sourcify.', EXPLORER.mainnet)}
+              ${docContract('StackReceiver', 'Live', 'pill-live', ADDRESSES.MAINNET_STACK_RECEIVER, 'Launch #1529, block 26,181,997: the Ethereum end of the <a href="#/docs/multichain">multichain route</a>. LayerZero\'s endpoint hands it each bridged delivery and it deposits every listed amount into the sIMD vault for its trader. Source verified on Sourcify.', EXPLORER.mainnet)}
+            </div>
+            <h2 id="robinhood">Robinhood Chain (chain 4663)</h2>
+            <div class="contracts-grid">
+              ${docContract('IMD', 'Robinhood Chain', 'pill-live', ADDRESSES.ROBINHOOD_IMD, 'IMD on Robinhood Chain: the same token over IMD\'s own LayerZero bridge (6 shared decimals).', EXPLORER.robinhood)}
+              ${docContract('RemoteStacker', 'Live', 'pill-live', ADDRESSES.ROBINHOOD_REMOTE_STACKER, 'Launch #1537, block 87,379,080: the same <code>credit(trader, amount)</code> as on Ethereum. Cashback waits here per trader until anyone flushes it to the StackReceiver on Ethereum through IMD\'s bridge, for a tip of up to 2%. Source verified on Sourcify. A Robinhood Chain ProjectRegistry comes next.', EXPLORER.robinhood)}
+              ${docContract('Intake v2', 'IdentityMD', 'pill-test', ADDRESSES.INTAKE_V2, 'IdentityMD\'s oracle intake, the same address as on Ethereum and Sepolia; it sells questions here for 0.5 IMD.', EXPLORER.robinhood)}
             </div>
             <h2 id="earlier">Earlier Sepolia deployments</h2>
             ${docTable(['Contract', 'Address', 'Note'], [
@@ -2068,7 +2077,7 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
               ['#1463, Sepolia test run 6 (2026-10-12)', 'ProjectRegistry, rules v3.1 (the current Sepolia registry)', '<code>3f5d2049-b807-43eb-853f-3aeddefa485f</code>', docAddr(ADDRESSES.PROJECT_REGISTRY), '<a href="https://github.com/identity-md-launches/launch-1463-launch-imd-acc-s-sepolia-test" target="_blank" rel="noopener noreferrer">launch-1463</a>'],
               ['<strong>#1495, Ethereum mainnet (2026-10-13)</strong>', 'The ProjectRegistry: rules v3.1, owner-only applications, bond 20 IMD, cooldown 7 days', '<code>4a9a5a47-2aef-4bb1-badc-7c3d79da55f8</code> (a first job, <code>b4b81b03…</code>, blocked on the accepted self-challenge limit)', docAddr(ADDRESSES.MAINNET_REGISTRY, true), '<a href="https://github.com/identity-md-launches/launch-1495-launch-imd-acc-s-mainnet-projectregistry" target="_blank" rel="noopener noreferrer">launch-1495</a>'],
               ['<strong>#1529, Ethereum mainnet (2026-10-13)</strong>', 'The StackReceiver: the Ethereum end of the multichain route, depositing bridged cashback into sIMD per trader', '<code>909db3b6-eafd-4034-b0b9-bd27c3c09ee7</code>', docAddr(ADDRESSES.MAINNET_STACK_RECEIVER, true), '<a href="https://github.com/identity-md-launches/launch-1529-launch-imd-acc-s-stackreceiver-ethereum" target="_blank" rel="noopener noreferrer">launch-1529</a>'],
-              ['<strong>#1537, Robinhood Chain (2026-10-13)</strong>', 'The RemoteStacker: the Robinhood Chain end of the multichain route, waiting cashback flushed to Ethereum through IMD\'s bridge', '<code>54ba8a3e-20b0-44ae-a59b-bf04926fe47e</code>', '<a class="mono" style="white-space: nowrap;" href="https://repo.sourcify.dev/4663/0x4De07c2fa46D5d6ED9CEB3f38ec56d3461b3E898" target="_blank" rel="noopener noreferrer" title="' + ADDRESSES.ROBINHOOD_REMOTE_STACKER + '">' + shortAddr(ADDRESSES.ROBINHOOD_REMOTE_STACKER) + ' &nearr;</a>', '<a href="https://github.com/identity-md-launches/launch-1537-launch-imd-acc-s-remotestacker-robinhood" target="_blank" rel="noopener noreferrer">launch-1537</a>']
+              ['<strong>#1537, Robinhood Chain (2026-10-13)</strong>', 'The RemoteStacker: the Robinhood Chain end of the multichain route, waiting cashback flushed to Ethereum through IMD\'s bridge', '<code>54ba8a3e-20b0-44ae-a59b-bf04926fe47e</code>', docAddr(ADDRESSES.ROBINHOOD_REMOTE_STACKER, 'robinhood'), '<a href="https://github.com/identity-md-launches/launch-1537-launch-imd-acc-s-remotestacker-robinhood" target="_blank" rel="noopener noreferrer">launch-1537</a>']
             ])}
             <h2 id="audits">What the audits found</h2>
             ${docTable(['Launch', 'Findings', 'Outcome'], [
@@ -2101,19 +2110,24 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
         {
           slug: 'multichain',
           title: 'Multichain',
-          summary: 'Cashback from projects on other chains, delivered to Ethereum as sIMD.',
-          keywords: 'multichain robinhood base arbitrum layerzero remotestacker stackreceiver tip bridge',
+          summary: 'Cashback from projects on other chains, delivered to Ethereum as sIMD. Live on Robinhood Chain.',
+          keywords: 'multichain robinhood base arbitrum layerzero remotestacker stackreceiver tip bridge flush queued',
           body: `
-            <div class="docs-callout docs-callout-warn"><p><strong>Designed, not built yet.</strong> Robinhood Chain comes first (PondPad), then Base and Arbitrum.</p></div>
+            <div class="docs-callout"><p><strong>Live on Robinhood Chain since 2026-10-13</strong> (the RemoteStacker, launch #1537) with the StackReceiver on Ethereum (launch #1529), tested live the same day: two flushes reached the sIMD vault within about two minutes each. Base and Arbitrum come when IMD can launch there.</p></div>
             <h2 id="how">How it works</h2>
-            <p>The sIMD vault exists only on Ethereum. On other chains, cashback waits per trader and is delivered to Ethereum as sIMD through <strong>IMD's own LayerZero bridge</strong>.</p>
+            <p>The sIMD vault exists only on Ethereum. On another chain, a project calls the same <code>credit(trader, amount)</code> on that chain's <strong>RemoteStacker</strong>; the cashback waits there per trader and is delivered to Ethereum as sIMD through <strong>IMD's own LayerZero bridge</strong>.</p>
             ${docTable(['Contract', 'Where', 'What it does'], [
-              ['<code>RemoteStacker</code>', 'each other chain', 'The same <code>credit(trader, imdAmount)</code>, so integrating is identical. Adds the IMD to the trader\'s waiting balance and emits <code>Queued(project, trader, imd)</code>: the points record.'],
-              ['<code>StackReceiver</code>', 'Ethereum', 'Receives the IMD with the list of traders and amounts, and deposits into sIMD for each.']
+              ['<code>RemoteStacker</code> ' + docAddr(ADDRESSES.ROBINHOOD_REMOTE_STACKER, 'robinhood'), 'Robinhood Chain', 'The same <code>credit(trader, imdAmount)</code>, so integrating is identical. Adds the IMD to the trader\'s waiting balance and emits <code>Queued(project, trader, recipient, imd)</code>: the points record on that chain. <code>flush(recipients)</code> sends waiting cashback to Ethereum.'],
+              ['<code>StackReceiver</code> ' + docAddr(ADDRESSES.MAINNET_STACK_RECEIVER, true), 'Ethereum', 'Receives the bridged IMD with the list of traders and amounts from LayerZero\'s endpoint, and deposits each amount into sIMD for its trader. If the vault refuses a deposit, that trader gets plain IMD. It keeps nothing.']
             ])}
-            <p>Anyone can <code>flush</code> up to 50 traders' waiting cashback and earn a tip: 2% &times; (hours waiting &divide; 12) of each trader's cashback, at most 2%. The trader always gets at least 98%. Points are counted on the chain where the trade happened, when it happened.</p>
+            <h2 id="flush">Flushing and the tip</h2>
+            <p>Anyone can <code>flush</code> up to 50 traders' waiting cashback and earn a tip: 2% per 12 hours waited of each trader's cashback, at most 2%, paid in IMD from that trader's balance. The flusher pays the bridge fee in Robinhood Chain's gas token (<code>quoteFlush</code> gives it; about 0.0007 ETH for a few traders) and the contract sets the Ethereum gas itself. The trader always gets at least 98%, and can flush their own cashback at once by calling <code>flush</code> themselves. Only whole bridge steps (0.000001 IMD) leave; smaller dust stays waiting, untipped, until it adds up.</p>
+            <h2 id="wallets">Smart-contract wallets</h2>
+            <p>A trader with code (a Safe, a smart wallet) may not exist at the same address on Ethereum, so it is paid plain IMD on its own chain at once, unless it names an Ethereum recipient for itself with <code>setEthereumRecipient</code>. Plain wallets, including EIP-7702 ones, go through the queue.</p>
+            <h2 id="trust">What you trust</h2>
+            <p>Both contracts have no owner: nobody can withdraw, redirect or freeze anything, and the only way out of the RemoteStacker is the StackReceiver fixed at deployment. The route relies on LayerZero and on IMD's bridge settings, which IMD's team controls. Points are counted on the chain where the trade happened, when it happened; a slow delivery never changes them.</p>
             <h2 id="listing">Listing on other chains</h2>
-            <p>One registry per chain, with the same code and the same Apply page. On Robinhood Chain the oracle fee and bonds are paid in Robinhood Chain's IMD (<code>0x5f7b…7127</code>), the same token over IMD's bridge.</p>`
+            <p>One registry per chain, with the same code and the same Apply page. On Robinhood Chain the oracle fee and bonds are paid in Robinhood Chain's IMD (<code>0x5f7b…7127</code>), the same token over IMD's bridge. The Robinhood Chain ProjectRegistry is the next launch; until it is live, credits there earn no points.</p>`
         },
         {
           slug: 'roadmap',
@@ -2127,7 +2141,7 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
               <li><strong>The Stacker on Ethereum mainnet</strong> (done, 2026-10-12, launch #1409), with a full IMD swarm audit. PLEA mainnet uses its address.</li>
               <li><strong>Indexer and mainnet dashboard</strong>: each trader's cashback, points and value, and the leaderboards.</li>
               <li><strong>ProjectRegistry on mainnet</strong> (done, 2026-10-13, launch #1495): a 20 IMD challenge bond and a 7-day cooldown. Points count from each project's listing block.</li>
-              <li><strong>Multichain</strong>: Robinhood Chain first, then Base and Arbitrum.</li>
+              <li><strong>Multichain</strong> (Robinhood Chain live, 2026-10-13, launches #1529 and #1537; its ProjectRegistry next): then Base and Arbitrum when IMD can launch there.</li>
               <li><strong>v2, the ETH route</strong>, for projects whose fees are in ETH: pending ETH is swapped to IMD in guarded batches, then staked. Built once such a project wants in.</li>
             </ol>`
         },
