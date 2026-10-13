@@ -36,6 +36,7 @@ contract DeploymentTest is Test {
     /// Chain (the same OFT over IMD's bridge).
     address internal constant ETH_ENDPOINT = 0x1a44076050125825900e736c501f859c50fE728c;
     address internal constant ROBINHOOD_IMD = 0x5F7Bb59365ce557C26dbcAa4EE9d39A4b95B7127;
+    address internal constant MAINNET_RECEIVER = 0x1999a54f573dAc75ce8Ef62A555dba418c9B3D10;
     uint32 internal constant ETH_EID = 30101;
 
     /// @dev main: the Stacker alone, on mainnet. sepolia: either the Stacker on the test pair, then
@@ -64,7 +65,7 @@ contract DeploymentTest is Test {
             string[] memory a = vm.parseJsonStringArray(json, ".contracts[0].constructorArgs");
             assertEq(a.length, 4);
             assertEq(vm.parseAddress(a[0]), ROBINHOOD_IMD, "IMD on Robinhood Chain");
-            assertTrue(vm.parseAddress(a[1]) != address(0), "the StackReceiver on Ethereum");
+            assertEq(vm.parseAddress(a[1]), MAINNET_RECEIVER, "the live StackReceiver on Ethereum");
             assertEq(vm.parseAddress(a[2]), MAINNET_SIMD, "the Ethereum vault, refused as trader");
             assertEq(vm.parseUint(a[3]), ETH_EID, "Ethereum's endpoint id");
             return;
