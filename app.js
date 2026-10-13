@@ -22,6 +22,7 @@
     MAINNET_IMD: '0xd34a99bc0f67ae1bbd63c660e6d0b0dd03e263b7',
     MAINNET_SIMD: '0x9efa934d9fad4ae28c998a40195646b965a97247',
     MAINNET_STACKER: '0x06909f672301f28a810f78cfe7a754851269f4f0', // launch #1409
+    MAINNET_REGISTRY: '0x7f53fa1543c682bb5de3f50c2cf3d1842ae57faa', // launch #1495, rules v3.1
     ROBINHOOD_IMD: '0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127'
   };
 
@@ -33,7 +34,7 @@
       rpcs: ['https://ethereum-rpc.publicnode.com', 'https://eth.drpc.org', 'https://eth.llamarpc.com'],
       explorer: 'https://etherscan.io',
       stacker: ADDRESSES.MAINNET_STACKER, stackerBlock: 26176629, stackerLaunch: 1409,
-      registry: null, registryBlock: 0, registryLaunch: null, // the mainnet registry: filled in when it is live
+      registry: '0x7f53fa1543c682bb5de3f50c2cf3d1842ae57faa', registryBlock: 26180923, registryLaunch: 1495, // launch #1495, rules v3.1
       imd: ADDRESSES.MAINNET_IMD, simd: ADDRESSES.MAINNET_SIMD, feeToken: ADDRESSES.MAINNET_IMD,
       imdLabel: 'IMD', feeLabel: 'IMD', vaultLabel: 'sIMD vault',
       knownNames: {}
@@ -1586,8 +1587,8 @@
       </div>`;
   }
 
-  function docAddr(addr) {
-    return `<a class="mono" style="white-space: nowrap;" href="${EXPLORER.sepolia}${addr}" target="_blank" rel="noopener noreferrer" title="${addr}">${shortAddr(addr)} &nearr;</a>`;
+  function docAddr(addr, mainnet = false) {
+    return `<a class="mono" style="white-space: nowrap;" href="${mainnet ? EXPLORER.mainnet : EXPLORER.sepolia}${addr}" target="_blank" rel="noopener noreferrer" title="${addr}">${shortAddr(addr)} &nearr;</a>`;
   }
 
   function docContract(name, pill, pillClass, addr, desc, explorer) {
@@ -1899,7 +1900,7 @@ error ZeroShares();`;
               ${docContract('IMD', 'Mainnet', 'pill-live', ADDRESSES.MAINNET_IMD, 'Standard 18-decimal ERC-20 (a LayerZero OFT), no transfer fee.', EXPLORER.mainnet)}
               ${docContract('sIMD vault', 'Mainnet', 'pill-live', ADDRESSES.MAINNET_SIMD, 'ERC-4626 staking vault. Owner renounced: nobody can pause it or sweep its funds.', EXPLORER.mainnet)}
               ${docContract('Stacker', 'Live', 'pill-live', ADDRESSES.MAINNET_STACKER, 'Launch #1409, block 26,176,629: the cashback funnel against the real IMD and sIMD, audited by the IMD swarm. Source verified on Sourcify.', EXPLORER.mainnet)}
-              ${docContract('ProjectRegistry', 'Planned', 'pill-planned', '', 'A later launch: the Sepolia registry\'s code, with a 20 IMD bond and a 7-day cooldown.', '')}
+              ${docContract('ProjectRegistry', 'Live', 'pill-live', ADDRESSES.MAINNET_REGISTRY, 'Launch #1495, block 26,180,923: the project list decided by IdentityMD oracle panels (rules v3.1, owner-only applications), the code of Sepolia test run 6 plus one guard (the registry itself is refused as beneficiary). Bond 20 IMD, cooldown 7 days. Source verified on Sourcify.', EXPLORER.mainnet)}
             </div>
             <h2 id="earlier">Earlier Sepolia deployments</h2>
             ${docTable(['Contract', 'Address', 'Note'], [
@@ -1977,7 +1978,7 @@ error ZeroShares();`;
             ${docTable(['File', 'What it holds'], [
               ['<a href="./data/v1/index.json"><code>/data/v1/index.json</code></a>', 'The chains that have a file, with each file\'s last block. Start here.'],
               ['<a href="./data/v1/sepolia.json"><code>/data/v1/sepolia.json</code></a>', 'Sepolia: the test run 2 Stacker and the test run 6 registry.'],
-              ['<a href="./data/v1/ethereum.json"><code>/data/v1/ethereum.json</code></a>', 'Ethereum mainnet: the Stacker (launch #1409). No registry yet, so no points.']
+              ['<a href="./data/v1/ethereum.json"><code>/data/v1/ethereum.json</code></a>', 'Ethereum mainnet: the Stacker (launch #1409) and the ProjectRegistry (launch #1495); points count from each listing block.']
             ])}
             <h2 id="rules">What the numbers mean</h2>
             <ul>
@@ -2063,7 +2064,7 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
               ['<strong>#1409, Ethereum mainnet (2026-10-12)</strong>', 'The Stacker against the real IMD and sIMD', '<code>cf76678d-aad4-413e-b24a-1066e990237d</code>', docAddr(ADDRESSES.MAINNET_STACKER), '<a href="https://github.com/identity-md-launches/launch-1409-launch-imd-acc-ethereum-mainnet" target="_blank" rel="noopener noreferrer">launch-1409</a>'],
               ['#1428, Sepolia test run 5 (2026-10-12)', 'ProjectRegistry, rules v3, owner-only applications', '<code>50be58df-6c55-4f75-98a3-9ee3aa432075</code>', docAddr(ADDRESSES.REGISTRY_RUN5), '<a href="https://github.com/identity-md-launches/launch-1428-launch-imd-acc-s-sepolia-test" target="_blank" rel="noopener noreferrer">launch-1428</a>'],
               ['#1463, Sepolia test run 6 (2026-10-12)', 'ProjectRegistry, rules v3.1 (the current Sepolia registry)', '<code>3f5d2049-b807-43eb-853f-3aeddefa485f</code>', docAddr(ADDRESSES.PROJECT_REGISTRY), '<a href="https://github.com/identity-md-launches/launch-1463-launch-imd-acc-s-sepolia-test" target="_blank" rel="noopener noreferrer">launch-1463</a>'],
-              ['<strong>Ethereum mainnet, ProjectRegistry</strong>', 'The project list, rules v3.1, bond 20 IMD, cooldown 7 days', '<code>b4b81b03-93f1-4cc0-89c1-3ba424813023</code>', 'in progress (paid 2026-10-13)', '']
+              ['<strong>#1495, Ethereum mainnet (2026-10-13)</strong>', 'The ProjectRegistry: rules v3.1, owner-only applications, bond 20 IMD, cooldown 7 days', '<code>4a9a5a47-2aef-4bb1-badc-7c3d79da55f8</code> (a first job, <code>b4b81b03…</code>, blocked on the accepted self-challenge limit)', docAddr(ADDRESSES.MAINNET_REGISTRY, true), '<a href="https://github.com/identity-md-launches/launch-1495-launch-imd-acc-s-mainnet-projectregistry" target="_blank" rel="noopener noreferrer">launch-1495</a>']
             ])}
             <h2 id="audits">What the audits found</h2>
             ${docTable(['Launch', 'Findings', 'Outcome'], [
@@ -2074,7 +2075,7 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
               ['#1409', '<strong>Low:</strong> <code>credit</code> accepted the Stacker, the vault or IMD as the trader, stranding shares. <strong>Medium:</strong> the integration rule\'s fallback to <code>sender</code> names the router in a v4 hook. <strong>Low:</strong> a tight gas cap fails the first-ever credit.', '<code>InvalidTrader</code> added to the live Stacker. The trader rule rewritten (hookData, else the router\'s <code>msgSender()</code>, else a plain-wallet sender), now the registry\'s rule. Gas budget 350k with a 410k check.'],
               ['#1428', '<strong>Low:</strong> a burn-address owner locks a project out. <strong>Info:</strong> an <code>owner()</code> over 30,000 gas reads as no owner.', 'Design choice, documented.'],
               ['#1463', '<strong>Lows:</strong> the owner gate fails open behind seven or more proxy hops; the self-challenge. <strong>Info:</strong> a non-address <code>owner()</code> locks a project out; signer and Intake fixed for life; delisting is not retroactive.', 'Documented trade-offs of the no-owner design.'],
-              ['Mainnet ProjectRegistry', 'pending', '']
+              ['#1495', '<strong>Low:</strong> a project could name the registry itself as beneficiary, stranding a defended bond. <strong>Low:</strong> a stranger can hold an ownerless project\'s application slot for the fee per round. <strong>Info:</strong> the accepted self-challenge limit; signer and Intake fixed for life; the Intake writer pairs answers.', 'IMD added a guard before deploying: the registry is refused as beneficiary in <code>applyListing</code> and <code>setBeneficiary</code>. The ownerless-slot point is the known limit for projects without an owner. The rest documented.']
             ])}
             <h2 id="trials">The live trials</h2>
             ${docTable(['Registry', 'Case', 'Result'], [

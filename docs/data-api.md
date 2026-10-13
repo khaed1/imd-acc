@@ -6,7 +6,7 @@ Read-only JSON files with every chain's cashback and points totals, rebuilt from
 |---|---|
 | [`https://imdacc.fun/data/v1/index.json`](https://imdacc.fun/data/v1/index.json) | The chains that have a file, with each file's last block. Start here. |
 | [`https://imdacc.fun/data/v1/sepolia.json`](https://imdacc.fun/data/v1/sepolia.json) | Sepolia: the test run 2 Stacker and the test run 6 registry (since 2026-10-12; before, test runs 4 and 5). |
-| [`https://imdacc.fun/data/v1/ethereum.json`](https://imdacc.fun/data/v1/ethereum.json) | Ethereum mainnet: the Stacker of launch #1409. No registry yet (`contracts.registry` is `null`), so no credit earns points there. |
+| [`https://imdacc.fun/data/v1/ethereum.json`](https://imdacc.fun/data/v1/ethereum.json) | Ethereum mainnet: the Stacker of launch #1409 and the ProjectRegistry of launch #1495 (since 2026-10-13; before, `contracts.registry` was `null` and no credit earned points). |
 
 The builder is [`tools/snapshot/build.mjs`](../tools/snapshot/build.mjs) (chains in [`tools/snapshot/chains.json`](../tools/snapshot/chains.json)); the website's workflow runs it on a schedule, on every push to `main`, and on demand.
 
