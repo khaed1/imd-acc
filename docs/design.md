@@ -164,56 +164,56 @@ The only thing lost is that another contract can't ask the Stacker directly for 
 
 ## Multichain: cashback from other chains
 
-**Decided 2026-10-11 (design; not built yet).** The sIMD vault exists only on Ethereum. On other chains, cashback waits per trader on that chain and is delivered to Ethereum as sIMD through **IMD's own LayerZero bridge**. Robinhood Chain comes first (PondPad), then Base and Arbitrum.
+**Decided 2026-10-11; built and tested 2026-10-13 (`src/multichain/`, [history section 49](history.md#49-multichain-route-built-remotestacker-and-stackreceiver-ready-for-launch-2026-10-13)).** The sIMD vault exists only on Ethereum. On other chains, cashback waits per trader on that chain and is delivered to Ethereum as sIMD through **IMD's own LayerZero bridge**. Robinhood Chain comes first (PondPad), then Base and Arbitrum.
 
-**Facts checked on chain (2026-10-11):**
-- IMD on Ethereum is a LayerZero OFT (v2) linked to Arbitrum (eid 30110), Base (eid 30184) and Robinhood Chain (eid 30416, IMD `0x5f7b…7127`). No new bridge is needed; anyone holding IMD on those chains already trusts it.
+**Facts checked on chain (2026-10-11, rechecked 2026-10-13):**
+- IMD on Ethereum is a LayerZero OFT (v2, `oftVersion` 0x02e49c2c version 1) linked to Arbitrum (eid 30110), Base (eid 30184) and Robinhood Chain (eid 30416, IMD `0x5f7b…7127`, a standard OFT too, endpoint `0x6F47…DD5B`). No new bridge is needed; anyone holding IMD on those chains already trusts it.
 - It supports send-and-call ("compose") and has no message inspector blocking it.
-- It moves amounts in steps of 0.000001 IMD (6 shared decimals); smaller dust stays on the source chain.
+- It moves amounts in steps of 0.000001 IMD (6 shared decimals, `decimalConversionRate` 1e12); smaller dust stays on the source chain.
 - Its enforced options cover only plain sends (60k gas on arrival), so a send-and-call must carry its own gas options.
 - Ethereum's LayerZero endpoint is `0x1a44076050125825900e736c501f859c50fE728c` (eid 30101).
-- IMD can launch on Sepolia, Ethereum and Robinhood Chain today, not yet on Base or Arbitrum.
+- IMD can launch on Sepolia, Ethereum and Robinhood Chain today (`evm_contracts` on all three), not yet on Base or Arbitrum.
 
 **Two new contracts, both with no owner:**
 
 | Contract | Where | What it does |
 |---|---|---|
-| `RemoteStacker` | each other chain | Same `credit(trader, imdAmount)` as on Ethereum, so integrating is identical. Pulls the IMD, adds it to the trader's waiting balance, and emits `Queued(project, trader, imd)` at once: that is the points record. Its `flush(traders)` sends waiting cashback to Ethereum. |
-| `StackReceiver` | Ethereum | Receives the IMD plus the list "trader → amount" and calls `sIMD.deposit(amount, trader)` for each. |
+| [`RemoteStacker`](../src/multichain/RemoteStacker.sol) | each other chain | Same `credit(trader, imdAmount)` as on Ethereum, so integrating is identical. Pulls the IMD, adds it to the trader's waiting balance, and emits `Queued(project, trader, recipient, imd)` at once: that is the points record. Its `flush(recipients)` sends waiting cashback to Ethereum. |
+| [`StackReceiver`](../src/multichain/StackReceiver.sol) | Ethereum | Receives the IMD plus the list "trader → amount" (the bridge's compose message) and calls `sIMD.deposit(amount, trader)` for each. |
 
-**How the waiting cashback is stored:** in the RemoteStacker. The IMD sits in its own balance; for each trader it records the amount waiting and the waiting clock. All of it is public.
+**How the waiting cashback is stored:** in the RemoteStacker. The IMD sits in its own balance; for each trader it records the amount waiting (`waiting`) and the waiting clock (`waitingSince`, the amount-weighted arrival time). All of it is public.
 
 **Who can do what:**
 
 | Who | Can | Can't |
 |---|---|---|
 | A project | add IMD for a trader, from its own IMD | take anything out |
-| Anyone | call `flush` with up to 50 traders and earn their tips | choose where it goes or change an amount |
-| A trader | flush their own cashback right away, paying the bridge fee | anything else |
+| Anyone | call `flush` with up to 50 recipients and earn their tips | choose where it goes or change an amount |
+| A trader | flush their own cashback right away (the same `flush`, with themselves in the list), paying the bridge fee | anything else |
 | Us, or any owner | nothing: no owner, admin, pause or upgrade | withdraw, redirect or freeze |
 
 The only way out is to the StackReceiver, whose address is fixed at deploy. The tip is computed by the contract, never chosen by the caller. IMD's bridge is configured by the IMD team; that's the one outside trust.
 
 **No fixed batches.** An earlier draft sent batches in order, so 50 junk entries with almost no value could block every batch behind them. Instead, each trader has their own waiting balance and whoever flushes picks up to 50 of them. Junk just sits and blocks nobody.
 
-**The tip (decided 2026-10-11):** each trader's tip is 2% × (hours waiting ÷ 12) of their waiting cashback, at most 2%. It goes, in IMD, to whoever flushes, who pays the bridge fee (in the chain's gas token).
+**The tip (decided 2026-10-11):** each trader's tip is 2% × (hours waiting ÷ 12) of their waiting cashback, at most 2% (`tipBps`). It goes, in IMD, to whoever flushes, who pays the bridge fee (in the chain's gas token).
 - The clock is the amount-weighted average arrival time, so new cashback doesn't inherit an old clock.
-- The same rule applies to every amount. The trader always gets at least 98%, and usually more: someone flushes as soon as the tips cover their cost (about $1 for 50 traders at today's Ethereum gas, an estimate), and a big waiting balance or many traders together get there sooner.
+- The same rule applies to every amount. The trader always gets at least 98%, and usually more: someone flushes as soon as the tips cover their cost (measured on a Robinhood Chain fork on 2026-10-13: the bridge fee is about 0.00068 ETH for 2 traders and 0.00107 ETH for 50), and a big waiting balance or many traders together get there sooner.
 - On a quiet chain, small amounts may wait longer than 12 hours, but the cut stays at 2%.
 - imd/acc takes nothing. On Ethereum there is no tip: the cashback is staked inside the trader's own swap.
 
-**Rules both contracts must follow:**
-1. **Balance always matches:** the RemoteStacker's IMD equals the sum of all waiting balances, apart from tips already paid out.
+**Rules both contracts follow** (each is a test or an invariant in `test/RemoteStacker.t.sol`, `test/StackReceiver.t.sol` and `test/MultichainFlow.t.sol`):
+1. **Balance always matches:** the RemoteStacker's IMD equals the sum of all waiting balances; tips and deliveries come out of the trader's own waiting balance, so every wei is accounted for (invariant).
 2. **Atomic flush:** if anything fails (bridge fee too low, a revert), every waiting balance stays exactly as it was.
 3. **No double pay:** a trader listed twice in one flush is delivered once (the second entry finds nothing waiting).
-4. **Dust stays with the trader:** each delivered amount is rounded down to the bridge step; the rest stays in that trader's waiting balance.
-5. **The contract sets the Ethereum gas** for the delivery (a base plus a fixed amount per trader), not the caller, so nobody can buy too little gas on purpose. If delivery still fails, anyone can retry it through LayerZero with more gas.
-6. **The receiver** accepts only calls from LayerZero's endpoint for IMD's own token. It hands out only the IMD that arrived in that message, and only if the listed amounts add up to it; a sender that lies about its own IMD can only lose its own IMD. If a deposit fails, that trader gets plain IMD on Ethereum. It keeps no IMD after a delivery.
-7. **Smart-contract wallets** (a Safe, some smart wallets) may not exist at the same address on Ethereum. They're paid plain IMD on their own chain at once, unless they register an Ethereum address for themselves. Plain wallets, including EIP-7702 ones, go through the queue.
-8. **Points** are counted on the chain where the trade happened, when it happened. A slow or retried delivery never changes points.
-9. **Launchable:** no constructor may revert on IMD's empty-chain rehearsal.
+4. **Dust stays with the trader:** each delivered amount is rounded down to the bridge step (read live from the token's `decimalConversionRate`); the rest stays in that trader's waiting balance.
+5. **The contract sets the Ethereum gas** for the delivery (`RECEIVE_GAS` 250k for IMD's `lzReceive`, `COMPOSE_BASE_GAS` 200k plus `COMPOSE_GAS_PER_TRADER` 80k for the receiver's `lzCompose`; measured on a mainnet fork: 98k–158k and 225k for one trader, 685k for ten, 3.08M for fifty), not the caller, so nobody can buy too little gas on purpose. If delivery still fails, anyone can retry it through LayerZero with more gas.
+6. **The receiver** accepts `lzCompose` only from LayerZero's endpoint and only for composes IMD's own token queued (`from == IMD`). It hands out only the IMD that arrived in that message (the amount is written by the token itself), and only if the listed amounts add up to it; a sender that lies about its own list can only lose its own IMD, so the receiver needs no knowledge of the sender's address, and can be deployed before the RemoteStacker. If a deposit fails (a paused vault, zero shares), that trader gets plain IMD on Ethereum. It keeps no IMD after a delivery.
+7. **Smart-contract wallets** (a Safe, some smart wallets) may not exist at the same address on Ethereum. They're paid plain IMD on their own chain at once (`Paid`, no points), unless they register an Ethereum address for themselves (`setEthereumRecipient`, callable only by the wallet itself; then their cashback waits under that address). Plain wallets, including EIP-7702 ones (a 23-byte `0xef0100` delegation), go through the queue.
+8. **Points** are counted on the chain where the trade happened, when it happened (`Queued`). A slow or retried delivery never changes points.
+9. **Launchable:** no constructor makes an external call, so IMD's empty-chain rehearsal passes (`test/Deployment.t.sol`).
 
-**How we make sure it's right:** spec (this section) → contracts with unit, fuzz and invariant tests (rules 1–4 as invariants), LayerZero's test helpers for the bridge, and forks of Ethereum and Robinhood Chain with the real IMD and sIMD → IMD launches (StackReceiver on Ethereum, RemoteStacker on Robinhood Chain) with the four-specialist audit, judge and independent review → a small live test with a few IMD → PondPad integrates.
+**How we make sure it's right:** spec (this section) → contracts with unit, fuzz and invariant tests (rules 1–4 as invariants) → forks of Ethereum and Robinhood Chain with the real IMD, sIMD, endpoint and bridge (`test/StackReceiverMainnetFork.t.sol` plays an arrival exactly as the live contracts do, IMD's `lzReceive` then the endpoint's `lzCompose`; `test/RobinhoodFork.t.sol` sends a real send-and-call through the live token: the IMD is burned and the endpoint accepts the packet) → IMD launches (StackReceiver on Ethereum first, then RemoteStacker on Robinhood Chain with the receiver's address: [`jobs/14-mainnet-stackreceiver-launch.md`](../jobs/14-mainnet-stackreceiver-launch.md), [`jobs/15-robinhood-remotestacker-launch.md`](../jobs/15-robinhood-remotestacker-launch.md)) with the four-specialist audit, judge and independent review → a small live test with a few IMD → PondPad integrates.
 
 **Accepted trade-offs:** the trader's sIMD lands on Ethereum, not on their own chain; delivery waits for the next flush; and it relies on LayerZero and IMD's bridge setup. A later step could send bridged sIMD back to the trader's own chain, or use local vaults if the IMD team deploys sIMD on other chains (worth asking them).
 
@@ -267,7 +267,7 @@ Side benefit: POOL4 burns a cut of IMD on its trades, so every flush also burns 
 - **Dashboard (2026-10-11):** points, leaderboards and each trader's cashback, value and yield come from the events plus live vault reads, served by an indexer.
 - **ProjectRegistry (2026-10-11; applicants narrowed 2026-10-12):** anyone may challenge, and apply for a project without an owner; a project that reports an owner is applied for by that owner or itself; one registry per chain; a defended challenge pays the bond to the project's beneficiary, a lost one returns it; no application fee beyond the oracle fee. First on Sepolia test run 2 with PLEA.
 - **Registry settings (2026-10-11):** panel 15 seats with 11 agreeing, open questions expire after 1 day; Sepolia bond 5 test IMD and cooldown 1 hour; mainnet bond 20 IMD and cooldown 7 days ([settings](#settings)).
-- **Multichain (2026-10-11):** per-trader waiting balances on other chains, delivered to Ethereum through IMD's bridge, paid by a tip of up to 2% that rises over 12 hours.
+- **Multichain (2026-10-11; built 2026-10-13):** per-trader waiting balances on other chains, delivered to Ethereum through IMD's bridge, paid by a tip of up to 2% that rises over 12 hours. `RemoteStacker` and `StackReceiver` in `src/multichain/`, ready for launch (the receiver on Ethereum first).
 
 ## Open questions
 

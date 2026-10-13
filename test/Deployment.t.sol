@@ -7,6 +7,8 @@ import {TestIMD} from "./mocks/TestIMD.sol";
 import {TestSIMD} from "./mocks/TestSIMD.sol";
 import {Stacker, IStakedIMD} from "../src/Stacker.sol";
 import {ProjectRegistry} from "../src/ProjectRegistry.sol";
+import {StackReceiver} from "../src/multichain/StackReceiver.sol";
+import {RemoteStacker} from "../src/multichain/RemoteStacker.sol";
 
 /// @dev Rehearses a launch: the manifest deploys exactly one Stacker, wired to a known IMD and vault
 /// pair (Ethereum mainnet on `main`, the live Sepolia test pair on the `sepolia` branch); the
@@ -30,6 +32,11 @@ contract DeploymentTest is Test {
     address internal constant SEPOLIA_STACKER = 0x0457276D7b036818B3EddC1A4A3FCeda61e9314d;
     /// @dev The mainnet Stacker (launch #1409), which the mainnet registry names.
     address internal constant MAINNET_STACKER = 0x06909F672301F28A810f78cfe7a754851269F4F0;
+    /// @dev The multichain route: LayerZero's endpoint on Ethereum (eid 30101) and IMD on Robinhood
+    /// Chain (the same OFT over IMD's bridge).
+    address internal constant ETH_ENDPOINT = 0x1a44076050125825900e736c501f859c50fE728c;
+    address internal constant ROBINHOOD_IMD = 0x5F7Bb59365ce557C26dbcAa4EE9d39A4b95B7127;
+    uint32 internal constant ETH_EID = 30101;
 
     /// @dev main: the Stacker alone, on mainnet. sepolia: either the Stacker on the test pair, then
     /// the ProjectRegistry wired to it (test run 2), or the ProjectRegistry alone, wired to test
@@ -40,10 +47,29 @@ contract DeploymentTest is Test {
         assertEq(vm.parseJsonString(json, ".kind"), "evm_contracts");
         assertFalse(vm.keyExistsJson(json, ".contracts[2]"), "at most two contracts");
 
-        if (
-            keccak256(bytes(vm.parseJsonString(json, ".contracts[0].contract")))
-                == keccak256("ProjectRegistry")
-        ) {
+        bytes32 first = keccak256(bytes(vm.parseJsonString(json, ".contracts[0].contract")));
+        if (first == keccak256("StackReceiver")) {
+            // main: the Ethereum end of the multichain route, on the live IMD, vault and endpoint.
+            assertFalse(vm.keyExistsJson(json, ".contracts[1]"), "the receiver alone");
+            string[] memory a = vm.parseJsonStringArray(json, ".contracts[0].constructorArgs");
+            assertEq(a.length, 3);
+            assertEq(vm.parseAddress(a[0]), MAINNET_IMD, "IMD");
+            assertEq(vm.parseAddress(a[1]), MAINNET_SIMD, "sIMD vault");
+            assertEq(vm.parseAddress(a[2]), ETH_ENDPOINT, "LayerZero endpoint");
+            return;
+        }
+        if (first == keccak256("RemoteStacker")) {
+            // robinhood: the Robinhood Chain end, on its IMD, naming the live StackReceiver.
+            assertFalse(vm.keyExistsJson(json, ".contracts[1]"), "the RemoteStacker alone");
+            string[] memory a = vm.parseJsonStringArray(json, ".contracts[0].constructorArgs");
+            assertEq(a.length, 4);
+            assertEq(vm.parseAddress(a[0]), ROBINHOOD_IMD, "IMD on Robinhood Chain");
+            assertTrue(vm.parseAddress(a[1]) != address(0), "the StackReceiver on Ethereum");
+            assertEq(vm.parseAddress(a[2]), MAINNET_SIMD, "the Ethereum vault, refused as trader");
+            assertEq(vm.parseUint(a[3]), ETH_EID, "Ethereum's endpoint id");
+            return;
+        }
+        if (first == keccak256("ProjectRegistry")) {
             assertFalse(vm.keyExistsJson(json, ".contracts[1]"), "the registry alone");
             string[] memory a = vm.parseJsonStringArray(json, ".contracts[0].constructorArgs");
             if (vm.parseAddress(a[1]) == MAINNET_IMD) {
@@ -109,6 +135,29 @@ contract DeploymentTest is Test {
         assertEq(address(reg.intake()), INTAKE_V2);
         assertEq(reg.oracleSigner(), ORACLE_SIGNER);
         _checkRuntime(address(reg));
+    }
+
+    function test_multichain_emptyChainRehearsal_constructorsPass() public {
+        assertEq(ETH_ENDPOINT.code.length, 0);
+        vm.prank(makeAddr("factory"));
+        StackReceiver receiver =
+            new StackReceiver(IERC20(MAINNET_IMD), IStakedIMD(MAINNET_SIMD), ETH_ENDPOINT);
+        assertEq(address(receiver.IMD()), MAINNET_IMD);
+        assertEq(address(receiver.SIMD()), MAINNET_SIMD);
+        assertEq(receiver.ENDPOINT(), ETH_ENDPOINT);
+        assertEq(receiver.totalDelivered(), 0);
+        _checkRuntime(address(receiver));
+
+        assertEq(ROBINHOOD_IMD.code.length, 0);
+        vm.prank(makeAddr("factory"));
+        RemoteStacker remote =
+            new RemoteStacker(IERC20(ROBINHOOD_IMD), address(receiver), MAINNET_SIMD, ETH_EID);
+        assertEq(address(remote.IMD()), ROBINHOOD_IMD);
+        assertEq(remote.RECEIVER(), address(receiver));
+        assertEq(remote.VAULT(), MAINNET_SIMD);
+        assertEq(remote.DST_EID(), ETH_EID);
+        assertEq(remote.totalQueued(), 0);
+        _checkRuntime(address(remote));
     }
 
     function test_emptyChainRehearsal_constructorPasses() public {
