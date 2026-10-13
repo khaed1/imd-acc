@@ -1173,7 +1173,7 @@
             <tbody>${rows}</tbody>
           </table>
         </div>
-        <p class="secondary" style="font-size: 0.84rem;">${NET.registry ? `Projects come from the ${NET.name} ProjectRegistry (<span class="mono">${shortAddr(NET.registry)}</span>) and from contracts that credit through the ${NET.stackerName}.` : `The ${NET.name} ProjectRegistry is being launched; until it is live, this page shows the contracts that credit through the Stacker, and no credit earns points.`} Next: PLEA on Ethereum mainnet, and PondPad on Robinhood Chain through the <a href="#/docs/multichain" style="color: var(--accent-primary);">multichain route</a>.</p>
+        <p class="secondary" style="font-size: 0.84rem;">${NET.registry ? `Projects come from the ${NET.name} ProjectRegistry (<span class="mono">${shortAddr(NET.registry)}</span>) and from contracts that credit through the ${NET.stackerName}.` : `The ${NET.name} ProjectRegistry is being launched; until it is live, this page shows the contracts that credit through the Stacker, and no credit earns points.`} Next: PLEA on Ethereum mainnet.</p>
       </div>
     `;
 
