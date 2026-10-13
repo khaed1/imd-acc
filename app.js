@@ -45,10 +45,12 @@
     },
     // The multichain route's Robinhood Chain end: credits are Queued in the RemoteStacker and
     // delivered to the sIMD vault on Ethereum, so there is no vault on this chain. Its official RPC
-    // serves old logs (publicnode refuses them), so logs are read in large ranges.
+    // serves old logs (publicnode refuses them), so logs are read there, in large ranges; state is
+    // read from publicnode first (the official RPC now and then sends a doubled CORS header).
     robinhood: {
       key: 'robinhood', name: 'Robinhood Chain', badge: 'Robinhood Chain', chainIdHex: '0x1237', testnet: false, remote: true,
-      rpcs: ['https://rpc.mainnet.chain.robinhood.com', 'https://robinhood-rpc.publicnode.com'],
+      rpcs: ['https://robinhood-rpc.publicnode.com', 'https://rpc.mainnet.chain.robinhood.com'],
+      logRpcs: ['https://rpc.mainnet.chain.robinhood.com', 'https://robinhood-rpc.publicnode.com'],
       explorer: 'https://robinhoodchain.blockscout.com', logStep: 5000000,
       addChain: {
         chainId: '0x1237', chainName: 'Robinhood Chain', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
@@ -301,7 +303,7 @@
     // gateway answer browsers refuse, such as a doubled CORS header), so the list is tried again.
     for (let pass = 0; pass < 2; pass++) {
       if (pass) await new Promise(r => setTimeout(r, 800));
-      for (const url of NET.rpcs) {
+      for (const url of (method === 'eth_getLogs' && NET.logRpcs) || NET.rpcs) {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 12000);
         try {
