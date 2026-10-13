@@ -1976,6 +1976,46 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
               <li>One open question per project, first come: a project can take its own slot with a self-challenge, at the cost of the fee each time. Each one still puts the project before the panel.</li>
               <li>The oracle signer and Intake can't be changed; a new registry would replace this one. The Stacker never reads the registry, so that needs no Stacker change.</li>
             </ul>`
+        },
+        {
+          slug: 'launches',
+          title: 'Launches & audits',
+          summary: 'Every IMD job that built, audited and deployed imd/acc, with its launch, code and audit findings.',
+          keywords: 'launches jobs audits judge findings launch repository admission checks sepolia mainnet trials',
+          body: `
+            <p>Every contract imd/acc runs was built, audited and deployed by the <a href="https://imd.fun" target="_blank" rel="noopener noreferrer">IMD swarm</a> from the public repository, in paid jobs. Each launch runs an import audit, an adapt step, a tests step, four specialist audits (math, permissions, economics, control flow) and a judge, then seven admission checks (provenance, findings, independent review, reproducible bytecode, manifest, protected invariants, economics). Nothing critical or high was ever found. The full record with every transaction: <a href="https://github.com/khaed1/imd-acc/blob/main/docs/launches.md" target="_blank" rel="noopener noreferrer">docs/launches.md</a> and <a href="https://github.com/khaed1/imd-acc/blob/main/docs/history.md" target="_blank" rel="noopener noreferrer">docs/history.md</a>.</p>
+            <p><strong>Check a job yourself</strong> (public, no key): <code>https://api.imd.fun/jobs/&lt;job id&gt;</code> (state, steps, launch), <code>/jobs/&lt;job id&gt;/submissions</code> (each step's summary and the judge's findings), <code>/launches/&lt;launch id&gt;</code> (addresses, admission checks). The delivered code is a public repository per launch under <a href="https://github.com/identity-md-launches" target="_blank" rel="noopener noreferrer">identity-md-launches</a>.</p>
+            <h2 id="launches">Launches</h2>
+            ${docTable(['Launch', 'What', 'Job', 'Contracts', 'Code'], [
+              ['#1129, Sepolia test run 1 (2026-10-09)', 'TestIMD, TestSIMD, the first Stacker', '<code>640b4951-f512-4415-ab2e-944462a2f5ba</code>', 'Stacker ' + docAddr(ADDRESSES.STACKER_V1), '<a href="https://github.com/identity-md-launches/launch-1129-build-imd-acc-sepolia-test" target="_blank" rel="noopener noreferrer">launch-1129</a>'],
+              ['#1294, Sepolia test run 2 (2026-10-11)', 'The Stacker (mainnet design) and the first ProjectRegistry (rules v1)', '<code>0b69e5bd-873f-4bcf-9e02-ef1a00a4b2f5</code>', 'Stacker ' + docAddr(ADDRESSES.STACKER) + ', registry ' + docAddr(ADDRESSES.REGISTRY_RUN2), '<a href="https://github.com/identity-md-launches/launch-1294-deploy-two-smart-contracts" target="_blank" rel="noopener noreferrer">launch-1294</a>'],
+              ['#1371, Sepolia test run 3 (2026-10-12)', 'ProjectRegistry, rules v2, one handoff per day', '<code>99f41994-1d2e-4e28-9a9b-338f78f576bf</code> (job 8, <code>6478f77c…</code>, was audited but never delivered)', docAddr(ADDRESSES.REGISTRY_RUN3), '<a href="https://github.com/identity-md-launches/launch-1371-launch-imd-acc-s-third-last" target="_blank" rel="noopener noreferrer">launch-1371</a>'],
+              ['#1378, Sepolia test run 4 (2026-10-12)', 'ProjectRegistry, rules v2, owed bonds', '<code>87fc50ef-4459-4b7a-90f0-e5399043a2b9</code>', docAddr(ADDRESSES.REGISTRY_RUN4), '<a href="https://github.com/identity-md-launches/launch-1378-launch-imd-acc-s-fourth-last" target="_blank" rel="noopener noreferrer">launch-1378</a>'],
+              ['<strong>#1409, Ethereum mainnet (2026-10-12)</strong>', 'The Stacker against the real IMD and sIMD', '<code>cf76678d-aad4-413e-b24a-1066e990237d</code>', docAddr(ADDRESSES.MAINNET_STACKER), '<a href="https://github.com/identity-md-launches/launch-1409-launch-imd-acc-ethereum-mainnet" target="_blank" rel="noopener noreferrer">launch-1409</a>'],
+              ['#1428, Sepolia test run 5 (2026-10-12)', 'ProjectRegistry, rules v3, owner-only applications', '<code>50be58df-6c55-4f75-98a3-9ee3aa432075</code>', docAddr(ADDRESSES.REGISTRY_RUN5), '<a href="https://github.com/identity-md-launches/launch-1428-launch-imd-acc-s-sepolia-test" target="_blank" rel="noopener noreferrer">launch-1428</a>'],
+              ['#1463, Sepolia test run 6 (2026-10-12)', 'ProjectRegistry, rules v3.1 (the current Sepolia registry)', '<code>3f5d2049-b807-43eb-853f-3aeddefa485f</code>', docAddr(ADDRESSES.PROJECT_REGISTRY), '<a href="https://github.com/identity-md-launches/launch-1463-launch-imd-acc-s-sepolia-test" target="_blank" rel="noopener noreferrer">launch-1463</a>'],
+              ['<strong>Ethereum mainnet, ProjectRegistry</strong>', 'The project list, rules v3.1, bond 20 IMD, cooldown 7 days', '<code>b4b81b03-93f1-4cc0-89c1-3ba424813023</code>', 'in progress (paid 2026-10-13)', '']
+            ])}
+            <h2 id="audits">What the audits found</h2>
+            ${docTable(['Launch', 'Findings', 'Outcome'], [
+              ['#1129', 'None kept by the judge; the bytecode reproduces exactly with forge 1.8.3.', 'Deployed as written.'],
+              ['#1294', '<strong>Medium:</strong> a beneficiary could change wallets ahead of a challenge and collect the bond. <strong>Lows:</strong> an answer never consumed; an unbounded cooldown; a challenge restated the application rate; a 1-wei credit renews the one-block hold.', 'Fixed by IMD before deploying: challenges pin the wallet, each answer is consumed once, the cooldown is capped, a challenge judges the current rate; the Stacker checks the vault on its first credit. The hold is a property of the vault, documented.'],
+              ['Job 8 and #1371', '<strong>Medium:</strong> a beneficiary could still refuse every challenge by moving the wallet ahead of each one. <strong>Lows:</strong> a self-challenge costs only the fee; a bond the token refuses could hold a question open for good.', 'One beneficiary handoff per day (IMD\'s fix). Self-challenge documented. Owed bonds fixed before test run 4.'],
+              ['#1378', '<strong>Low:</strong> the self-challenge. Token edge cases unreachable with IMD.', 'Documented.'],
+              ['#1409', '<strong>Low:</strong> <code>credit</code> accepted the Stacker, the vault or IMD as the trader, stranding shares. <strong>Medium:</strong> the integration rule\'s fallback to <code>sender</code> names the router in a v4 hook. <strong>Low:</strong> a tight gas cap fails the first-ever credit.', '<code>InvalidTrader</code> added to the live Stacker. The trader rule rewritten (hookData, else the router\'s <code>msgSender()</code>, else a plain-wallet sender), now the registry\'s rule. Gas budget 350k with a 410k check.'],
+              ['#1428', '<strong>Low:</strong> a burn-address owner locks a project out. <strong>Info:</strong> an <code>owner()</code> over 30,000 gas reads as no owner.', 'Design choice, documented.'],
+              ['#1463', '<strong>Lows:</strong> the owner gate fails open behind seven or more proxy hops; the self-challenge. <strong>Info:</strong> a non-address <code>owner()</code> locks a project out; signer and Intake fixed for life; delisting is not retroactive.', 'Documented trade-offs of the no-owner design.'],
+              ['Mainnet ProjectRegistry', 'pending', '']
+            ])}
+            <h2 id="trials">The live trials</h2>
+            ${docTable(['Registry', 'Case', 'Result'], [
+              ['Test run 2 (rules v1)', 'PLEA applied twice; SelfCredit applied', 'Split, 8 and 9 of 13 yes (11 needed), cleared; SelfCredit rejected 12 of 12'],
+              ['Test run 4 (rules v2)', 'PLEA applied and challenged; SelfCredit applied', 'PLEA listed 11 of 12 and defended 11 of 11; SelfCredit rejected 12 of 12'],
+              ['Test run 5 (rules v3)', 'SelfCredit applied; the TrialVenue applied and challenged', 'SelfCredit rejected 11 of 11; the venue listed 11 of 14 and defended 11 of 12'],
+              ['Rehearsal of rules v3.1', 'The venue\'s question with one rule replaced', '11 of 11 yes'],
+              ['Test run 6 (rules v3.1)', 'The TrialVenue applied and challenged', 'Listed 11 of 11; defended 11 of 11'],
+            ])}
+            <p>Every panel answer is a public oracle request at <code>https://api.imd.fun/oracle/requests/&lt;id&gt;</code>, with each member\'s reasoning; the ids are in the history.</p>`
         }
       ]
     },
