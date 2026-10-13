@@ -2103,6 +2103,8 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
               ['Test run 5 (rules v3)', 'SelfCredit applied; the TrialVenue applied and challenged', 'SelfCredit rejected 11 of 11; the venue listed 11 of 14 and defended 11 of 12'],
               ['Rehearsal of rules v3.1', 'The venue\'s question with one rule replaced', '11 of 11 yes'],
               ['Test run 6 (rules v3.1)', 'The TrialVenue applied and challenged', 'Listed 11 of 11; defended 11 of 11'],
+              ['Rehearsal on Robinhood Chain (rules v3.1)', 'The RemoteTrialVenue\'s question, filed under chain 4663', '11 of 12 yes'],
+              ['Robinhood Chain registry, #1561 (rules v3.1)', 'The RemoteTrialVenue applied', 'Listed 11 of 11, from Robinhood Chain block 87,523,125'],
             ])}
             <p>Every panel answer is a public oracle request at <code>https://api.imd.fun/oracle/requests/&lt;id&gt;</code>, with each member\'s reasoning; the ids are in the history.</p>`
         }

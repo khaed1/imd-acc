@@ -42,7 +42,7 @@ Each launch runs an import audit, an adapt step, a tests step, four specialist a
 
 ## The live trials
 
-The registry was tried live on Sepolia with real oracle panels before mainnet; each answer is a public oracle request at `https://api.imd.fun/oracle/requests/<id>`.
+The registry was tried live on Sepolia with real oracle panels before mainnet, and on Robinhood Chain after its launch; each answer is a public oracle request at `https://api.imd.fun/oracle/requests/<id>`.
 
 | Registry | Case | Result |
 |---|---|---|
@@ -51,5 +51,7 @@ The registry was tried live on Sepolia with real oracle panels before mainnet; e
 | Test run 5 (rules v3) | SelfCredit applied, the TrialVenue applied and challenged | SelfCredit rejected 11 of 11; the venue listed 11 of 14 and defended 11 of 12 (the no votes read "forwarding-router recipients" as any contract `msgSender()` returns) |
 | Rehearsal of rules v3.1 | the venue's question, one rule replaced | 11 of 11 yes |
 | Test run 6 (rules v3.1) | the TrialVenue applied and challenged | listed 11 of 11; defended 11 of 11 |
+| Rehearsal on Robinhood Chain (rules v3.1) | the RemoteTrialVenue's question, filed under chain 4663 | 11 of 12 yes |
+| Robinhood Chain registry, #1561 (rules v3.1) | the RemoteTrialVenue applied | listed 11 of 11, from Robinhood Chain block 87,523,125 |
 
 The rules and why they changed: [panel-rules-v2.md](panel-rules-v2.md).
