@@ -98,6 +98,8 @@ await page.exposeFunction("__walletRpc", async (s) => {
   return JSON.stringify(await rpc(method, params));
 });
 await page.addInitScript(INIT);
+// The site defaults to Ethereum mainnet; the trial runs on Sepolia.
+await page.addInitScript(() => { try { localStorage.setItem("imd_acc_network", "sepolia"); } catch (e) {} });
 
 async function waitSent(n, label, sel) {
   const ready = () => (sel ? sent.some((t) => t.sel === sel) : sent.length >= n);
