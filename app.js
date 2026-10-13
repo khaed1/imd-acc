@@ -1672,7 +1672,7 @@ error ZeroShares();`;
               <li><strong>sIMD vault</strong>: IMD's own ERC-4626 staking vault. imd/acc only deposits into it.</li>
             </ul>
             <h2 id="status">Where it stands</h2>
-            <p>The Stacker and the ProjectRegistry are live on Sepolia (latest: test run 6, launch #1463). The Stacker is live on Ethereum mainnet (launch #1409), against the real IMD and sIMD. See <a href="#/docs/contracts">Contracts</a> for every address and <a href="#/docs/roadmap">Roadmap</a> for what comes next.</p>
+            <p>Both contracts are live on Ethereum mainnet: the Stacker (launch #1409, 2026-10-12), against the real IMD and sIMD, and the ProjectRegistry (launch #1495, 2026-10-13), which decides listings and points. Sepolia keeps a test Stacker and the test run 6 registry (launch #1463) for integrators. See <a href="#/docs/contracts">Contracts</a> for every address and <a href="#/docs/roadmap">Roadmap</a> for what comes next.</p>
             <div class="docs-callout"><p>imd/acc is inspired by TokenWorks' btc/acc: the same idea of turning trading activity into a growing stack, here in staked IMD.</p></div>`
         },
         {
@@ -1823,14 +1823,14 @@ error ZeroShares();`;
             <h2 id="steps">Steps</h2>
             <ol>
               <li><strong>Integrate</strong> following the <a href="#/docs/integration">integration guide</a>, and verify your source.</li>
-              <li><strong>Apply.</strong> Anyone calls <code>applyListing(project, name, sourceUrl, rateBps, beneficiary)</code> (or uses the <a href="#/apply">Apply</a> page) and pays the oracle fee, read live from the Intake: 0.5 IMD today.</li>
+              <li><strong>Apply.</strong> The project's owner (what its <code>owner()</code> returns), or the project contract itself, calls <code>applyListing(project, name, sourceUrl, rateBps, beneficiary)</code> (or uses the <a href="#/apply">Apply</a> page) and pays the oracle fee, read live from the Intake: 0.5 IMD today. A project without an owner can be applied for by anyone.</li>
               <li><strong>The panel answers</strong> within minutes. 15 seats, 11 must agree. <strong>Yes</strong> lists the project from that block; <strong>no</strong> rejects it, and it can apply again.</li>
               <li><strong>No answer</strong> (a split panel or a refused question) clears the application; it can be sent again at once. Nothing is listed.</li>
             </ol>
             <h2 id="rules">What the panel checks</h2>
             ${docTable(['Rule', 'In short'], [
               ['trading', 'Every credit happens inside a trade, for that trade\'s trader, with IMD from that trade\'s fees.'],
-              ['trader', 'The project never picks who is credited; the hookData address (else the sender) counts as the trader.'],
+              ['trader', 'The project never picks who is credited: valid router hookData, else the router\'s msgSender(), else sender only if it has no code; never tx.origin, never the router itself. A contract msgSender() reports is a valid trader.'],
               ['otherPayouts', 'Cashback paid outside the Stacker (for example the plain-IMD fallback) is allowed and simply earns no points.'],
               ['rate', 'Each credit is the stated rate of its trade, between 25 and 100 bps.'],
               ['feeGuard', 'The parts of the fee that leave for good add up to at least the cashback, for every allowed setting.'],
@@ -1847,7 +1847,7 @@ error ZeroShares();`;
               <li><code>expire(project)</code> lets anyone clear a question that can no longer be answered, after a day or once the Intake completed it.</li>
             </ul>
             <h2 id="settings">Settings</h2>
-            ${docTable(['Setting', 'Sepolia', 'Ethereum (planned)'], [
+            ${docTable(['Setting', 'Sepolia', 'Ethereum mainnet'], [
               ['Oracle fee', '0.5 test IMD', '0.5 IMD'],
               ['Challenge bond', '5 test IMD', '20 IMD'],
               ['Challenge cooldown', '1 hour', '7 days'],
@@ -2034,7 +2034,7 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
               <li><code>nonReentrant</code> on every state-changing entry point, OpenZeppelin <code>SafeERC20</code>, constructors that make no external call.</li>
             </ul>
             <h2 id="audits">Audits</h2>
-            <p>Every launch was built and audited by the <a href="https://imd.fun" target="_blank" rel="noopener noreferrer">IMD swarm</a>: an import audit, four specialist audits (math, permissions, economics, control flow), a judge that reproduces and ranks findings, an independent review, and reproducible bytecode. Sepolia launches #1129, #1294, #1371, #1378, #1428 and #1463, and the mainnet launch #1409; each finding was fixed or documented. The tests (unit, fuzz, invariants, and forks of mainnet and Sepolia) are in the repository.</p>
+            <p>Every launch was built and audited by the <a href="https://imd.fun" target="_blank" rel="noopener noreferrer">IMD swarm</a>: an import audit, four specialist audits (math, permissions, economics, control flow), a judge that reproduces and ranks findings, an independent review, and reproducible bytecode. Sepolia launches #1129, #1294, #1371, #1378, #1428 and #1463, and the mainnet launches #1409 (the Stacker) and #1495 (the ProjectRegistry); each finding was fixed or documented (see <a href="#/docs/launches">Launches &amp; audits</a>). The tests (unit, fuzz, invariants, and forks of mainnet and Sepolia) are in the repository.</p>
             <h2 id="trust">What you trust</h2>
             <ul>
               <li><strong>The sIMD vault</strong>, IMD's own ERC-4626 vault, whose owner is renounced.</li>
@@ -2120,7 +2120,7 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
               <li><strong>Live listing trial</strong> on Sepolia (done, 2026-10-12): PLEA listed by the oracle panel, a negative case rejected, and a challenge against PLEA defended.</li>
               <li><strong>The Stacker on Ethereum mainnet</strong> (done, 2026-10-12, launch #1409), with a full IMD swarm audit. PLEA mainnet uses its address.</li>
               <li><strong>Indexer and mainnet dashboard</strong>: each trader's cashback, points and value, and the leaderboards.</li>
-              <li><strong>ProjectRegistry on mainnet</strong>: a 20 IMD challenge bond and a 7-day cooldown.</li>
+              <li><strong>ProjectRegistry on mainnet</strong> (done, 2026-10-13, launch #1495): a 20 IMD challenge bond and a 7-day cooldown. Points count from each project's listing block.</li>
               <li><strong>Multichain</strong>: Robinhood Chain first, then Base and Arbitrum.</li>
               <li><strong>v2, the ETH route</strong>, for projects whose fees are in ETH: pending ETH is swapped to IMD in guarded batches, then staked. Built once such a project wants in.</li>
             </ol>`
