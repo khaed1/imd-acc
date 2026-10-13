@@ -132,11 +132,15 @@ contract RemoteStacker is ReentrancyGuard {
 
         uint256 before = waiting[recipient];
         // The waiting clock is the amount-weighted arrival time, so new cashback never inherits an
-        // old clock and old cashback never loses its waiting time.
-        waitingSince[recipient] = uint64(
-            (uint256(waitingSince[recipient]) * before + block.timestamp * imdAmount)
-                / (before + imdAmount)
-        );
+        // old clock and old cashback never loses its waiting time. A balance that has waited past
+        // the tip's cap counts as having waited exactly the cap (its tip is capped anyway), so the
+        // new amount's share of the clock starts at zero rather than inheriting a very old one.
+        uint256 since = waitingSince[recipient];
+        if (before > 0 && block.timestamp - since > TIP_PERIOD) {
+            since = block.timestamp - TIP_PERIOD;
+        }
+        waitingSince[recipient] =
+            uint64((since * before + block.timestamp * imdAmount) / (before + imdAmount));
         waiting[recipient] = before + imdAmount;
         projectQueued[msg.sender] += imdAmount;
         totalQueued += imdAmount;
@@ -212,9 +216,11 @@ contract RemoteStacker is ReentrancyGuard {
 
     /// @notice Send the waiting cashback of up to 50 recipients to Ethereum in one bridge message.
     /// The caller pays the bridge fee (`msg.value`, quoted by `quoteFlush`; the excess is refunded
-    /// by the endpoint) and receives the tips in IMD. Each delivered amount is rounded down to the
-    /// bridge's step (0.000001 IMD); the rest stays waiting with the recipient. A recipient listed
-    /// twice, or with nothing waiting, is skipped. If anything fails, nothing changes.
+    /// by the endpoint) and receives the tips in IMD. Only whole bridge steps (0.000001 IMD) of a
+    /// recipient's waiting balance leave: the tip is taken from that part, rounded down to a step,
+    /// and the rest is delivered; dust below a step stays waiting, untipped, until it adds up to a
+    /// step. A recipient listed twice, or with nothing to deliver, is skipped. If anything fails,
+    /// nothing changes.
     function flush(address[] calldata recipients)
         external
         payable
@@ -256,8 +262,9 @@ contract RemoteStacker is ReentrancyGuard {
             address r = recipients[i];
             uint256 w = waiting[r];
             if (w == 0 || _listed(plan.to, n, r)) continue;
-            uint256 share = w * tipBps(r) / BPS;
-            uint256 amount = (w - share) / step * step; // dust below the bridge step stays waiting
+            uint256 leaving = w / step * step; // whole steps; the dust stays waiting, untipped
+            uint256 share = leaving * tipBps(r) / BPS / step * step;
+            uint256 amount = leaving - share;
             if (amount == 0) continue;
             plan.to[n] = r;
             plan.amounts[n] = amount;

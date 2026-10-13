@@ -215,10 +215,10 @@ contract RemoteStackerTest is Test {
         list[1] = bob;
         (uint256 imdOut, uint256 tip, address[] memory to, uint256[] memory amounts, uint256 fee) =
             rs.quoteFlush(list);
-        uint256 aliceTip = uint256(10e18 + 7) * 100 / 10_000;
+        uint256 aliceTip = uint256(10e18) * 100 / 10_000; // on the whole steps only
         uint256 bobTip = 4e18 * 100 / 10_000;
-        uint256 aliceOut = (uint256(10e18 + 7) - aliceTip) / STEP * STEP;
-        uint256 bobOut = (4e18 - bobTip) / STEP * STEP;
+        uint256 aliceOut = 10e18 - aliceTip;
+        uint256 bobOut = 4e18 - bobTip;
         assertEq(imdOut, aliceOut + bobOut);
         assertEq(tip, aliceTip + bobTip);
         assertEq(to.length, 2);
@@ -231,7 +231,7 @@ contract RemoteStackerTest is Test {
         bytes32 guid = rs.flush{value: fee + 0.5 ether}(list);
         assertEq(flusher.balance, flusherEth - fee, "excess native refunded");
         assertEq(imd.balanceOf(flusher), tip, "tip paid in IMD");
-        assertEq(rs.waiting(alice), uint256(10e18 + 7) - aliceTip - aliceOut, "dust stays");
+        assertEq(rs.waiting(alice), 7, "dust stays, untipped");
         assertEq(rs.waiting(bob), 4e18 - bobTip - bobOut);
         assertEq(imd.balanceOf(address(rs)), rs.waiting(alice) + rs.waiting(bob));
 
@@ -369,6 +369,36 @@ contract RemoteStackerTest is Test {
         assertEq(opts, expected);
     }
 
+    function test_tip_newCashbackNeverInheritsACappedClock() public {
+        project.credit(alice, 10e18);
+        vm.warp(block.timestamp + 10 days); // long past the cap: the tip is 2% of 10 IMD
+        project.credit(alice, 10e18); // arrives now: must pay no tip
+        (, uint256 tip,,,) = rs.quoteFlush(one(alice));
+        assertEq(tip, 10e18 * 200 / 10_000, "2% of the old 10 IMD, nothing on the new 10");
+        assertEq(rs.tipBps(alice), 100, "half the balance has waited the cap, half nothing");
+        vm.warp(block.timestamp + 6 hours);
+        assertEq(rs.tipBps(alice), 200);
+    }
+
+    function test_flush_dustIsNeverTippedTwice() public {
+        project.credit(alice, 1e18 + 999_999_999_999); // one step short of 1.000001 IMD
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(flusher);
+        rs.flush{value: 0.001 ether}(one(alice));
+        assertEq(imd.balanceOf(flusher), 1e18 * 200 / 10_000, "tip on the whole steps only");
+        assertEq(rs.waiting(alice), 999_999_999_999, "the dust stays");
+        // Nothing to deliver from dust alone, so nothing is tipped on it.
+        vm.warp(block.timestamp + 1 days);
+        (uint256 imdOut, uint256 tip,,,) = rs.quoteFlush(one(alice));
+        assertEq(imdOut + tip, 0);
+        // Once it adds up to a step it leaves, tipped once; a single step pays no tip (rounds to 0).
+        project.credit(alice, 1);
+        vm.warp(block.timestamp + 1 days);
+        (imdOut, tip,,,) = rs.quoteFlush(one(alice));
+        assertEq(imdOut, STEP);
+        assertEq(tip, 0);
+    }
+
     function testFuzz_flush_conservesEveryWei(uint96 a, uint96 b, uint32 waited) public {
         a = uint96(bound(a, 1, 10_000e18));
         b = uint96(bound(b, 1, 10_000e18));
@@ -385,7 +415,10 @@ contract RemoteStackerTest is Test {
         assertEq(imd.balanceOf(address(rs)), rs.waiting(alice) + rs.waiting(bob));
         assertEq(rs.waiting(alice) + rs.waiting(bob) + imdOut + tip, uint256(a) + b);
         assertEq(imdOut % STEP, 0);
-        assertLe(tip, (uint256(a) + b) * 200 / 10_000);
+        assertEq(tip % STEP, 0);
+        assertLe(tip, (imdOut + tip) * 200 / 10_000, "at least 98% of what leaves is delivered");
+        assertLt(rs.waiting(alice), STEP);
+        assertLt(rs.waiting(bob), STEP);
         assertEq(imd.balanceOf(flusher), tip);
     }
 }
