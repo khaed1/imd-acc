@@ -277,6 +277,7 @@ jobs/                     IMD swarm job prompts, in order
 listings/sepolia.json     the list-file fallback (test run 2 uses the ProjectRegistry instead)
 .github/ISSUE_TEMPLATE/   the "List my project" application form
 docs/plea-test-run-2.md   what the PLEA session needs for test run 2: addresses, crediting, applying
+docs/pondpad-handoff.md   what the PondPad session needs to add imd/acc cashback on Robinhood Chain
 tools/site-check/         browser checks for the test site (live reads, transactions on a local fork)
 tools/snapshot/           the data API builder (docs/data-api.md) and its fork test
 NEXT_SESSION.md           the brief for the next working session
