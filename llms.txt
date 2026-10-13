@@ -10,6 +10,7 @@ Data API (JSON, every chain's cashback and points, about every 15 minutes): http
 ## Ethereum mainnet (1)
 
 - Stacker: 0x06909f672301f28a810f78cfe7a754851269f4f0 (launch #1409; credit refuses the Stacker, the vault and the IMD token as trader)
+- ProjectRegistry: 0x7f53fa1543c682bb5de3f50c2cf3d1842ae57faa (launch #1495, panel rules version 3.1; a project that reports an owner() is applied for by that owner; fee 0.5 IMD, challenge bond 20 IMD, cooldown 7 days)
 - IMD: 0xd34a99bc0f67ae1bbd63c660e6d0b0dd03e263b7
 - sIMD: 0x9efa934d9fad4ae28c998a40195646b965a97247
 

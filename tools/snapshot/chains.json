@@ -18,8 +18,8 @@
     "id": 1,
     "stacker": "0x06909f672301f28a810f78cfe7a754851269f4f0",
     "stackerBlock": 26176629,
-    "registry": null,
-    "registryBlock": null,
+    "registry": "0x7f53fa1543c682bb5de3f50c2cf3d1842ae57faa",
+    "registryBlock": 26180923,
     "confirmations": 12,
     "rpcs": [
       "https://ethereum-rpc.publicnode.com",
