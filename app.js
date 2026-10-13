@@ -29,7 +29,7 @@
     ROBINHOOD_IMD: '0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127'
   };
 
-  // --- Networks: Ethereum mainnet by default, Sepolia for testing (the header switch) ---
+  // --- Networks: Ethereum mainnet by default, Robinhood Chain, Sepolia for testing (the header switch) ---
   // Public RPCs that allow browser calls, tried in order. Reads start at the deploy blocks.
   const NETWORKS = {
     ethereum: {
@@ -40,7 +40,28 @@
       registry: '0x7f53fa1543c682bb5de3f50c2cf3d1842ae57faa', registryBlock: 26180923, registryLaunch: 1495, // launch #1495, rules v3.1
       imd: ADDRESSES.MAINNET_IMD, simd: ADDRESSES.MAINNET_SIMD, feeToken: ADDRESSES.MAINNET_IMD,
       imdLabel: 'IMD', feeLabel: 'IMD', vaultLabel: 'sIMD vault',
+      stackerName: 'Stacker', tag: 'Ethereum Mainnet', projectsTag: 'Ethereum Mainnet', registryTag: 'Ethereum Mainnet Registry', livePill: 'Mainnet Live',
       knownNames: {}
+    },
+    // The multichain route's Robinhood Chain end: credits are Queued in the RemoteStacker and
+    // delivered to the sIMD vault on Ethereum, so there is no vault on this chain. Its official RPC
+    // serves old logs (publicnode refuses them), so logs are read in large ranges.
+    robinhood: {
+      key: 'robinhood', name: 'Robinhood Chain', badge: 'Robinhood Chain', chainIdHex: '0x1237', testnet: false, remote: true,
+      rpcs: ['https://rpc.mainnet.chain.robinhood.com', 'https://robinhood-rpc.publicnode.com'],
+      explorer: 'https://robinhoodchain.blockscout.com', logStep: 5000000,
+      addChain: {
+        chainId: '0x1237', chainName: 'Robinhood Chain', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+        rpcUrls: ['https://rpc.mainnet.chain.robinhood.com'], blockExplorerUrls: ['https://robinhoodchain.blockscout.com']
+      },
+      stacker: ADDRESSES.ROBINHOOD_REMOTE_STACKER, stackerBlock: 87379080, stackerLaunch: 1537,
+      registry: ADDRESSES.ROBINHOOD_REGISTRY, registryBlock: 87507987, registryLaunch: 1561,
+      imd: ADDRESSES.ROBINHOOD_IMD, simd: null, feeToken: ADDRESSES.ROBINHOOD_IMD,
+      imdLabel: 'IMD', feeLabel: 'IMD', vaultLabel: 'sIMD vault',
+      stackerName: 'RemoteStacker', tag: 'Robinhood Chain', projectsTag: 'Robinhood Chain', registryTag: 'Robinhood Chain Registry', livePill: 'Robinhood Live',
+      knownNames: {
+        '0x81d17894b724dcb462bd5585be0792b1b32d19cc': 'imd/acc RemoteTrialVenue'
+      }
     },
     sepolia: {
       key: 'sepolia', name: 'Sepolia', badge: 'Sepolia test run 6', chainIdHex: '0xaa36a7', testnet: true,
@@ -50,6 +71,7 @@
       registry: ADDRESSES.PROJECT_REGISTRY, registryBlock: 11900978, registryLaunch: 1463,
       imd: ADDRESSES.TEST_IMD, simd: ADDRESSES.TEST_SIMD, feeToken: ADDRESSES.ORACLE_FEE_TOKEN,
       imdLabel: 'TestIMD', feeLabel: 'test IMD', vaultLabel: 'TestSIMD vault',
+      stackerName: 'Stacker', tag: 'Sepolia Test Run 6', projectsTag: 'Test Run 6 Registry', registryTag: 'Test Run 6 Registry', livePill: 'Test Run 6 Live',
       knownNames: {
         '0x2d5a03d5bab98a4a435edad11813373963bca8cc': 'PLEA (hook)',
         '0x3d1778be5f9e55f0df35acaf64a13efe2fe81488': 'SelfCredit (trial)',
@@ -80,7 +102,11 @@
     projectOwner: '0x0dd64ae4', // projectOwner(address), test run 5 on
     bondOwed: '0x8af92a6d',
     claimBond: '0x0f022812',
-    expire: '0xc8db233e'
+    expire: '0xc8db233e',
+    // RemoteStacker (Robinhood Chain)
+    waiting: '0xe437786d', // waiting(address)
+    quoteFlush: '0xd15db71a', // quoteFlush(address[])
+    flush: '0x48897c52' // flush(address[])
   };
 
   const TOPIC = {
@@ -92,7 +118,9 @@
     Defended: '0x42d2c8660fea33f766be7cfab644ef179a97c26621566727cbcb6ae7986963a9',
     Delisted: '0x0f4e3ebc43292a7ecf57e30d244481c276bb21cb84f14905ce5786ddcfe2908a',
     AskCleared: '0x479ec138af9f4c82591accadecba9be18b659e2389b0629555e011f33a6b97d4',
-    BeneficiarySet: '0x2906d223dc4163733bb374af8641c7e9ae256e2bae53c90e0c9a2be2e611ae44'
+    BeneficiarySet: '0x2906d223dc4163733bb374af8641c7e9ae256e2bae53c90e0c9a2be2e611ae44',
+    Queued: '0x230276f3d1b1026907db52455ecd27f5c8ca695d499d8e28d51d8a0c8851e2db', // RemoteStacker
+    Delivering: '0x7f64657283b1a94fa9965ae9e7c5b20fecc8244b996da445899d1f9175376f88' // RemoteStacker
   };
 
   const ASK_NAMES = ['None', 'Application', 'Challenge'];
@@ -128,10 +156,12 @@
     bond: 0n,
     cooldown: 0n,
     vaultPaused: false,
-    stacks: [], // newest first: { project, trader, imd, shares, block, tx }
+    waitingTotal: 0n, // Robinhood Chain: IMD waiting in the RemoteStacker to be flushed
+    stacks: [], // newest first: { project, trader, imd, shares, block, tx } (Queued credits on Robinhood Chain: shares 0)
+    deliveries: [], // Robinhood Chain: { recipient, imd, tip, block, tx } from Delivering events
     projects: new Map(), // address -> registry project and/or Stacker caller
     outcomes: [], // newest first
-    wallet: null // { imd, imdAllowance, simd, cashbackValue, feeToken, feeAllowance, bondOwed }
+    wallet: null // { imd, imdAllowance, simd, cashbackValue, feeToken, feeAllowance, bondOwed } (+ waiting, flushFee on Robinhood Chain)
   };
 
   // --- Utilities ---
@@ -267,28 +297,33 @@
   // --- Chain reads ---
   async function rpc(method, params) {
     let lastError = null;
-    for (const url of NET.rpcs) {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 12000);
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-          signal: ctrl.signal
-        });
-        const body = await res.json();
-        if (body.error) {
-          const err = new Error(body.error.message || 'RPC error');
-          err.rpc = true;
-          throw err;
+    // Two passes over the RPC list: a public RPC sometimes fails one request (a rate limit, or a
+    // gateway answer browsers refuse, such as a doubled CORS header), so the list is tried again.
+    for (let pass = 0; pass < 2; pass++) {
+      if (pass) await new Promise(r => setTimeout(r, 800));
+      for (const url of NET.rpcs) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 12000);
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+            signal: ctrl.signal
+          });
+          const body = await res.json();
+          if (body.error) {
+            const err = new Error(body.error.message || 'RPC error');
+            err.rpc = true;
+            throw err;
+          }
+          return body.result;
+        } catch (e) {
+          lastError = e;
+          if (e.rpc && method === 'eth_call') throw e; // a revert is the same on every RPC
+        } finally {
+          clearTimeout(timer);
         }
-        return body.result;
-      } catch (e) {
-        lastError = e;
-        if (e.rpc && method === 'eth_call') throw e; // a revert is the same on every RPC
-      } finally {
-        clearTimeout(timer);
       }
     }
     throw lastError || new Error(`No ${NET.name} RPC answered`);
@@ -298,16 +333,24 @@
 
   async function getLogs(address, topics, fromBlock, toBlock) {
     const out = [];
-    const STEP = 10000;
-    for (let a = fromBlock; a <= toBlock; a += STEP) {
-      const b = Math.min(toBlock, a + STEP - 1);
-      const logs = await rpc('eth_getLogs', [{
-        address,
-        topics,
-        fromBlock: '0x' + a.toString(16),
-        toBlock: '0x' + b.toString(16)
-      }]);
+    let step = NET.logStep || 10000;
+    for (let a = fromBlock; a <= toBlock;) {
+      const b = Math.min(toBlock, a + step - 1);
+      let logs;
+      try {
+        logs = await rpc('eth_getLogs', [{
+          address,
+          topics,
+          fromBlock: '0x' + a.toString(16),
+          toBlock: '0x' + b.toString(16)
+        }]);
+      } catch (e) {
+        if (step <= 10000) throw e;
+        step = Math.floor(step / 4); // a range the RPC refuses is retried smaller
+        continue;
+      }
       out.push(...logs);
+      a = b + 1;
     }
     return out;
   }
@@ -380,12 +423,14 @@
       const block = Number(latest.number);
       const reg = NET.registry;
       const zero = '0x' + '0'.repeat(64);
+      // On Robinhood Chain there is no vault: read the IMD waiting in the RemoteStacker instead,
+      // and its Queued (credits) and Delivering (flushed to Ethereum) events.
       const [fee, bond, cooldown, paused, stackLogs, regLogs] = await Promise.all([
         reg ? ethCall(reg, SEL.ORACLE_FEE) : zero,
         reg ? ethCall(reg, SEL.challengeBond) : zero,
         reg ? ethCall(reg, SEL.challengeCooldown) : zero,
-        ethCall(NET.simd, SEL.paused),
-        getLogs(NET.stacker, [TOPIC.Stacked], NET.stackerBlock, block),
+        NET.remote ? ethCall(NET.imd, encodeCall(SEL.balanceOf, [['address', NET.stacker]])) : ethCall(NET.simd, SEL.paused),
+        getLogs(NET.stacker, NET.remote ? [[TOPIC.Queued, TOPIC.Delivering]] : [TOPIC.Stacked], NET.stackerBlock, block),
         reg ? getLogs(reg, [], NET.registryBlock, block) : []
       ]);
 
@@ -396,7 +441,7 @@
         const t = log.topics;
         if (!t[1]) continue;
         const kind = Object.keys(TOPIC).find(k => TOPIC[k] === t[0]);
-        if (!kind || kind === 'Stacked') continue;
+        if (!kind || kind === 'Stacked' || kind === 'Queued' || kind === 'Delivering') continue;
         const p = projectEntry(topicAddress(t[1]));
         p.inRegistry = true;
         const w = words(log.data);
@@ -429,16 +474,20 @@
         }
       }
 
-      live.stacks = stackLogs.map(log => {
+      live.stacks = stackLogs.filter(log => log.topics[0] !== TOPIC.Delivering).map(log => {
         const w = words(log.data);
         return {
           project: topicAddress(log.topics[1]),
           trader: topicAddress(log.topics[2]),
-          imd: decUint(w[0]),
-          shares: decUint(w[1]),
+          imd: decUint(w[NET.remote ? 1 : 0]), // Queued(project, trader, recipient, imd)
+          shares: NET.remote ? 0n : decUint(w[1]), // sIMD is minted on Ethereum at delivery
           block: Number(log.blockNumber),
           tx: log.transactionHash
         };
+      }).reverse();
+      live.deliveries = stackLogs.filter(log => log.topics[0] === TOPIC.Delivering).map(log => {
+        const w = words(log.data);
+        return { recipient: topicAddress(log.topics[2]), imd: decUint(w[0]), tip: decUint(w[1]), block: Number(log.blockNumber), tx: log.transactionHash };
       }).reverse();
 
       for (const s of live.stacks) {
@@ -459,7 +508,8 @@
       live.fee = decUint(words(fee)[0]);
       live.bond = decUint(words(bond)[0]);
       live.cooldown = decUint(words(cooldown)[0]);
-      live.vaultPaused = decUint(words(paused)[0]) === 1n;
+      live.vaultPaused = !NET.remote && decUint(words(paused)[0]) === 1n;
+      live.waitingTotal = NET.remote ? decUint(words(paused)[0]) : 0n;
       live.status = 'ready';
       live.error = '';
     } catch (e) {
@@ -467,6 +517,9 @@
       live.error = e.message || String(e);
     }
   }
+
+  // flush(address[]) and quoteFlush(address[]) for one recipient: offset, length 1, the address.
+  const flushData = (a, selector = SEL.flush) => selector + encUint(32) + encUint(1) + encAddress(a);
 
   async function loadWallet() {
     const a = state.account;
@@ -479,11 +532,13 @@
       const shares = mine.reduce((sum, s) => sum + s.shares, 0n);
       const reg = NET.registry;
       const zero = '0x' + '0'.repeat(64);
+      // Robinhood Chain: no vault here; the slots read the trader's waiting cashback and the bridge
+      // fee to flush it now (quoteFlush([a]) returns the fee as its fifth value).
       const [imd, imdAllowance, simd, value, feeToken, feeAllowance, owed] = await Promise.all([
         ethCall(NET.imd, encodeCall(SEL.balanceOf, [['address', a]])),
         ethCall(NET.imd, encodeCall(SEL.allowance, [['address', a], ['address', NET.stacker]])),
-        ethCall(NET.simd, encodeCall(SEL.balanceOf, [['address', a]])),
-        ethCall(NET.simd, encodeCall(SEL.convertToAssets, [['uint', shares]])),
+        NET.remote ? ethCall(NET.stacker, encodeCall(SEL.waiting, [['address', a]])) : ethCall(NET.simd, encodeCall(SEL.balanceOf, [['address', a]])),
+        NET.remote ? ethCall(NET.stacker, flushData(a, SEL.quoteFlush)).catch(() => zero) : ethCall(NET.simd, encodeCall(SEL.convertToAssets, [['uint', shares]])),
         ethCall(NET.feeToken, encodeCall(SEL.balanceOf, [['address', a]])),
         reg ? ethCall(NET.feeToken, encodeCall(SEL.allowance, [['address', a], ['address', reg]])) : zero,
         reg ? ethCall(reg, encodeCall(SEL.bondOwed, [['address', a]])) : zero
@@ -492,8 +547,10 @@
       live.wallet = {
         imd: first(imd),
         imdAllowance: first(imdAllowance),
-        simd: first(simd),
-        cashbackValue: first(value),
+        simd: NET.remote ? 0n : first(simd),
+        cashbackValue: NET.remote ? 0n : first(value),
+        waiting: NET.remote ? first(simd) : 0n,
+        flushFee: NET.remote && words(value).length >= 5 ? decUint(words(value)[4]) : 0n,
         feeToken: first(feeToken),
         feeAllowance: first(feeAllowance),
         bondOwed: first(owed)
@@ -529,10 +586,10 @@
       const which = a.getAttribute('data-net-explorer');
       const addr = which === 'registry' ? NET.registry : NET.stacker;
       a.href = addr ? `${NET.explorer}/address/${addr}` : '#/docs/contracts';
-      a.textContent = `${NET.name} ${which === 'registry' ? 'ProjectRegistry' : 'Stacker'}${addr ? '' : ' (launching)'}`;
+      a.textContent = `${NET.name} ${which === 'registry' ? 'ProjectRegistry' : NET.stackerName}${addr ? '' : ' (launching)'}`;
     });
     if (!redraw) return;
-    Object.assign(live, { status: 'idle', error: '', block: 0, time: 0, fetchedAt: 0, fee: 0n, bond: 0n, cooldown: 0n, vaultPaused: false, stacks: [], projects: new Map(), outcomes: [], wallet: null });
+    Object.assign(live, { status: 'idle', error: '', block: 0, time: 0, fetchedAt: 0, fee: 0n, bond: 0n, cooldown: 0n, vaultPaused: false, waitingTotal: 0n, stacks: [], deliveries: [], projects: new Map(), outcomes: [], wallet: null });
     render(true);
     refreshLive();
   }
@@ -585,10 +642,16 @@
     if (!state.account) await connectWallet();
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
     if (chainId !== NET.chainIdHex) {
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: NET.chainIdHex }]
-      });
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: NET.chainIdHex }]
+        });
+      } catch (e) {
+        // 4902: the wallet doesn't know the chain yet (Robinhood Chain): add it, which also switches.
+        if (!NET.addChain || (e.code !== 4902 && e.data?.originalError?.code !== 4902)) throw e;
+        await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [NET.addChain] });
+      }
     }
   }
 
@@ -621,13 +684,13 @@
   }
 
   // Sends one transaction, waits for it, then reloads what the chain says.
-  async function sendTx(to, data, label) {
+  async function sendTx(to, data, label, value = 0n) {
     if (state.busy) throw new Error('Another transaction is still running');
     state.busy = true;
     try {
       await ensureChain();
       showToast(`${label}: confirm in your wallet`);
-      const hash = await sendTxWithGas({ to, data });
+      const hash = await sendTxWithGas(value > 0n ? { to, data, value: '0x' + value.toString(16) } : { to, data });
       showToast(`${label}: sent, waiting for ${NET.name}`);
       const receipt = await waitForReceipt(hash);
       if (receipt.status !== '0x1') throw new Error(`${label} failed on chain`);
@@ -813,9 +876,9 @@
         <div class="dashboard-card" style="padding: 24px;">
           <div class="card-header-row" style="margin-bottom: 12px;">
             <h3 class="card-title" style="font-size: 1.05rem;">Live ${NET.name} Network Status</h3>
-            <span class="pill pill-live">${NET.testnet ? 'Test Run 6 Live' : 'Mainnet Live'}</span>
+            <span class="pill pill-live">${NET.livePill}</span>
           </div>
-          <p class="secondary" style="margin-bottom: 16px;">${blockText()} &middot; Stacker (launch #${NET.stackerLaunch})${NET.registry ? ` and ProjectRegistry (launch #${NET.registryLaunch})` : ''} live${live.status === 'ready' ? `: ${live.stacks.length} cashback credit${live.stacks.length === 1 ? '' : 's'} so far, ${[...live.projects.values()].filter(p => p.record && p.record.listed).length} listed project(s)` : ''}.${NET.registry ? '' : ' The ProjectRegistry is being launched; listings open when it is live.'}</p>
+          <p class="secondary" style="margin-bottom: 16px;">${blockText()} &middot; ${NET.stackerName} (launch #${NET.stackerLaunch})${NET.registry ? ` and ProjectRegistry (launch #${NET.registryLaunch})` : ''} live${live.status === 'ready' ? `: ${live.stacks.length} cashback credit${live.stacks.length === 1 ? '' : 's'} so far, ${[...live.projects.values()].filter(p => p.record && p.record.listed).length} listed project(s)` : ''}.${NET.registry ? '' : ' The ProjectRegistry is being launched; listings open when it is live.'}</p>
           <div style="display: flex; gap: 12px; flex-wrap: wrap;">
             <a href="#/stack" class="btn btn-primary btn-sm">Your Stack</a>
             <a href="#/docs" class="btn btn-secondary btn-sm">Read the Docs</a>
@@ -838,7 +901,7 @@
         <tr>
           <td><strong class="mono">${s.project === s.trader ? 'Self-stack' : safe(p?.name || shortAddr(s.project))}</strong><div class="secondary" style="font-size: 0.76rem;">${txLink(s.tx, 'block ' + s.block.toLocaleString('en-US'))}</div></td>
           <td class="mono" style="white-space: nowrap;">${fmtUnits(s.imd)} IMD</td>
-          <td class="mono" style="white-space: nowrap;">${fmtUnits(s.shares, 24)} sIMD</td>
+          <td class="mono" style="white-space: nowrap;">${NET.remote ? '<span class="secondary">on delivery</span>' : `${fmtUnits(s.shares, 24)} sIMD`}</td>
           <td class="mono">${listed ? fmtUnits(s.imd) : '0.0000'}</td>
           <td><span class="pill ${listed ? 'pill-live' : 'pill-test'}">${listed ? 'Listed' : 'Direct'}</span></td>
         </tr>`;
@@ -852,15 +915,16 @@
     const mine = a ? live.stacks.filter(s => s.trader === a) : [];
     const cashback = mine.reduce((t, s) => t + s.imd, 0n);
     const points = mine.reduce((t, s) => t + (isListedAt(s.project, s.block) ? s.imd : 0n), 0n);
+    const delivered = a ? live.deliveries.filter(d => d.recipient === a).reduce((t, d) => t + d.imd, 0n) : 0n;
     const shown = a ? mine : live.stacks.slice(0, 10);
     const dash = '&mdash;';
 
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag"><span class="status-indicator"></span> ${NET.testnet ? 'Sepolia Test Run 6' : 'Ethereum Mainnet'} &middot; ${blockText()}</div>
+          <div class="page-tag"><span class="status-indicator"></span> ${NET.tag} &middot; ${blockText()}</div>
           <h1 class="page-title">Your Stack${NET.testnet ? ' & Testnet Console' : ''}</h1>
-          <p class="page-desc">${NET.testnet ? 'Track accumulated cashback, sIMD vault shares, and use the Sepolia testnet tools.' : 'Your cashback, sIMD vault shares, their value today and your points, read live from Ethereum.'}</p>
+          <p class="page-desc">${NET.testnet ? 'Track accumulated cashback, sIMD vault shares, and use the Sepolia testnet tools.' : NET.remote ? 'Your cashback from projects on Robinhood Chain and your points. Cashback waits in the RemoteStacker until it is flushed to Ethereum, where the sIMD vault mints your shares.' : 'Your cashback, sIMD vault shares, their value today and your points, read live from Ethereum.'}</p>
         </div>
 
         <div class="app-grid">
@@ -875,6 +939,25 @@
             </div>
 
             <div class="stats-grid">
+              ${NET.remote ? `
+              <div class="stat-box">
+                <span class="stat-label">Cashback Queued</span>
+                <span class="stat-val" id="stat-cashback">${a ? fmtUnits(cashback) + ' IMD' : dash}</span>
+                <span class="stat-change">${a ? `From ${mine.length} credit${mine.length === 1 ? '' : 's'}` : 'From your Queued events'}</span>
+              </div>
+
+              <div class="stat-box">
+                <span class="stat-label">Waiting Now</span>
+                <span class="stat-val" id="stat-waiting">${w ? fmtUnits(w.waiting) + ' IMD' : dash}</span>
+                <span class="stat-change">Not yet flushed to Ethereum</span>
+              </div>
+
+              <div class="stat-box">
+                <span class="stat-label">Delivered to Ethereum</span>
+                <span class="stat-val" id="stat-delivered">${a ? fmtUnits(delivered) + ' IMD' : dash}</span>
+                <span class="stat-change">As sIMD: <a href="#/stack" data-switch-net="ethereum" style="color: var(--accent-primary);">switch to Ethereum</a> to see its value</span>
+              </div>
+              ` : `
               <div class="stat-box">
                 <span class="stat-label">Cashback Received</span>
                 <span class="stat-val" id="stat-cashback">${a ? fmtUnits(cashback) + ' IMD' : dash}</span>
@@ -892,6 +975,8 @@
                 <span class="stat-val" id="stat-worth">${w ? fmtUnits(w.cashbackValue) + ' IMD' : dash}</span>
                 <span class="stat-change">${w ? `+${fmtUnits(w.cashbackValue > cashback ? w.cashbackValue - cashback : 0n)} IMD yield` : 'Your cashback, priced by the vault'}</span>
               </div>
+
+              `}
 
               <div class="stat-box">
                 <span class="stat-label">Total Points</span>
@@ -941,6 +1026,14 @@
                 <button class="btn btn-primary btn-sm" id="btn-self-stack">Stack</button>
               </div>
               <div class="secondary" style="font-size: 0.78rem;">Self-stacks are direct, no points.</div>
+            </div>` : NET.remote ? `
+            <div class="tool-card">
+              <h4 class="tool-title">How cashback works here</h4>
+              <p class="tool-desc">Trade in a <a href="#/projects" style="color: var(--accent-primary);">participating project</a> on Robinhood Chain. Its contract sends 0.25% to 1% of each trade to the RemoteStacker, where it waits for you. Anyone can flush waiting cashback to Ethereum for a tip of up to 2%, rising over 12 hours; you can flush your own at once and pay only the bridge fee.</p>
+              <button class="btn btn-primary btn-sm" id="btn-flush" style="width: 100%;"${w && w.flushFee > 0n ? '' : ' disabled'}>
+                <span>Flush my cashback now</span>
+              </button>
+              <div class="secondary" style="font-size: 0.78rem; margin-top: 8px;">${!a ? 'Connect a wallet first.' : !w ? blockText() : w.flushFee > 0n ? `Bridge fee: <span class="mono">${fmtUnits(w.flushFee, 18, 5)}</span> ETH` : 'Nothing to flush yet.'}</div>
             </div>` : `
             <div class="tool-card">
               <h4 class="tool-title">How to earn cashback</h4>
@@ -949,11 +1042,11 @@
 
             <div class="tool-card" style="background: var(--bg-card);">
               <h4 class="tool-title">${NET.name} Network Status</h4>
-              <p class="tool-desc" style="margin-bottom: 8px;">Stacker at block <code>${NET.stackerBlock.toLocaleString('en-US')}</code> (launch #${NET.stackerLaunch}); ${NET.registry ? `ProjectRegistry at block <code>${NET.registryBlock.toLocaleString('en-US')}</code> (launch #${NET.registryLaunch}).` : 'ProjectRegistry: being launched.'}</p>
+              <p class="tool-desc" style="margin-bottom: 8px;">${NET.stackerName} at block <code>${NET.stackerBlock.toLocaleString('en-US')}</code> (launch #${NET.stackerLaunch}); ${NET.registry ? `ProjectRegistry at block <code>${NET.registryBlock.toLocaleString('en-US')}</code> (launch #${NET.registryLaunch}).` : 'ProjectRegistry: being launched.'}</p>
               <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
-                &bull; Vault status: ${live.status === 'ready'
+                ${NET.remote ? `&bull; Waiting to be flushed: <span class="mono">${live.status === 'ready' ? fmtUnits(live.waitingTotal) + ' IMD' : '&mdash;'}</span><br>` : `&bull; Vault status: ${live.status === 'ready'
                   ? `<span style="color: ${live.vaultPaused ? 'var(--status-pending)' : 'var(--status-live)'};">${live.vaultPaused ? 'Paused (credits revert)' : 'Active (Unpaused)'}</span>`
-                  : '<span class="mono">&mdash;</span>'}<br>
+                  : '<span class="mono">&mdash;</span>'}<br>`}
                 ${NET.registry ? `&bull; Oracle fee: <span class="mono">${live.status === 'ready' ? fmtUnits(live.fee, 18, 2) + ' ' + NET.feeLabel : '&mdash;'}</span><br>
                 &bull; Challenge bond: <span class="mono">${live.status === 'ready' ? fmtUnits(live.bond, 18, 0) + ' ' + NET.feeLabel : '&mdash;'}</span><br>
                 &bull; Cooldown: <span class="mono">${live.status === 'ready' ? fmtDuration(live.cooldown) : '&mdash;'}</span>` : `&bull; Listings and points start when the ProjectRegistry is live.`}
@@ -986,6 +1079,20 @@
         if (amount === 0n) throw new Error('Enter an amount above 0');
         await ensureChain();
         await sendTx(NET.stacker, encodeCall(SEL.credit, [['address', state.account], ['uint', amount]]), 'Stack to myself');
+      } catch (e) {
+        showToast(walletError(e));
+      }
+    });
+
+    // Robinhood Chain: send this wallet's waiting cashback to Ethereum now. The bridge fee is quoted
+    // again just before sending and padded by 10%; the endpoint refunds the excess.
+    document.getElementById('btn-flush')?.addEventListener('click', async () => {
+      try {
+        await ensureChain();
+        const q = words(await ethCall(NET.stacker, flushData(state.account, SEL.quoteFlush)));
+        const fee = q.length >= 5 ? decUint(q[4]) : 0n;
+        if (fee === 0n) throw new Error('Nothing to flush yet');
+        await sendTx(NET.stacker, flushData(state.account), 'Flush', fee * 11n / 10n);
       } catch (e) {
         showToast(walletError(e));
       }
@@ -1037,7 +1144,7 @@
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag">${NET.testnet ? 'Test Run 6 Registry' : 'Ethereum Mainnet'} &middot; ${blockText()}</div>
+          <div class="page-tag">${NET.projectsTag} &middot; ${blockText()}</div>
           <h1 class="page-title">Participating Projects</h1>
           <p class="page-desc">Only credits from listed projects earn points. Every project selects its rate between 0.25% and 1.0%.</p>
         </div>
@@ -1064,7 +1171,7 @@
             <tbody>${rows}</tbody>
           </table>
         </div>
-        <p class="secondary" style="font-size: 0.84rem;">${NET.registry ? `Projects come from the ${NET.name} ProjectRegistry (<span class="mono">${shortAddr(NET.registry)}</span>) and from contracts that credit through the Stacker.` : `The ${NET.name} ProjectRegistry is being launched; until it is live, this page shows the contracts that credit through the Stacker, and no credit earns points.`} Next: PLEA on Ethereum mainnet, and PondPad on Robinhood Chain through the <a href="#/docs/multichain" style="color: var(--accent-primary);">multichain route</a>.</p>
+        <p class="secondary" style="font-size: 0.84rem;">${NET.registry ? `Projects come from the ${NET.name} ProjectRegistry (<span class="mono">${shortAddr(NET.registry)}</span>) and from contracts that credit through the ${NET.stackerName}.` : `The ${NET.name} ProjectRegistry is being launched; until it is live, this page shows the contracts that credit through the Stacker, and no credit earns points.`} Next: PLEA on Ethereum mainnet, and PondPad on Robinhood Chain through the <a href="#/docs/multichain" style="color: var(--accent-primary);">multichain route</a>.</p>
       </div>
     `;
 
@@ -1090,7 +1197,7 @@
             <h1 class="page-title">Project Not Found</h1>
           </div>
           <div class="dashboard-card">
-            <p class="secondary" style="overflow-wrap: anywhere;">Contract <span class="mono">${safe(rawAddr)}</span> has not applied to the ${NET.name} ProjectRegistry and has no Stacker credits.</p>
+            <p class="secondary" style="overflow-wrap: anywhere;">Contract <span class="mono">${safe(rawAddr)}</span> has not applied to the ${NET.name} ProjectRegistry and has no ${NET.stackerName} credits.</p>
             <div style="margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
               <a href="#/projects" class="btn btn-secondary btn-sm">&larr; Back to Projects</a>
               <a href="#/apply" class="btn btn-primary btn-sm">Apply for Listing</a>
@@ -1275,9 +1382,9 @@
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag">${NET.testnet ? 'Test Run 6 Registry' : 'Ethereum Mainnet Registry'} &middot; ${blockText()}</div>
+          <div class="page-tag">${NET.registryTag} &middot; ${blockText()}</div>
           <h1 class="page-title">Apply for Project Listing</h1>
-          <p class="page-desc">List your project on the ownerless ProjectRegistry so your traders' cashback credits earn points.</p>
+          <p class="page-desc">List your project on the ownerless ProjectRegistry so your traders' cashback credits earn points.${NET.remote && live.status === 'ready' ? ` Fee ${fmtUnits(live.fee, 18, 1)} IMD on Robinhood Chain.` : ''}</p>
         </div>
 
         <div class="app-grid">
@@ -1869,7 +1976,7 @@ error ZeroShares();`;
           body: `
             <h2 id="tokens">Get test tokens</h2>
             <ul>
-              <li><strong>Switch the site to Sepolia</strong> with the network switch in the header: every page then reads the Sepolia test run 6 registry and the test Stacker, and <a href="#/stack">Your stack</a> shows the faucet and a "stack to myself" tool. The choice is remembered in your browser.</li>
+              <li><strong>Switch the site to Sepolia</strong> with the network switch in the header: every page then reads the Sepolia test run 6 registry and the test Stacker, and <a href="#/stack">Your stack</a> shows the faucet and a "stack to myself" tool. The choice is remembered in your browser. The header switch has three networks: Ethereum, Robinhood and Sepolia.</li>
               <li><strong>TestIMD</strong> (<code>0x2b69…1e82</code>): call <code>faucet()</code> for 10,000 tIMD per address every 24 hours, or use the faucet on <a href="#/stack">Your stack</a> in Sepolia mode.</li>
               <li><strong>Oracle test IMD</strong> (<code>0x44a1…f89a</code>): pays the registry's oracle fee; anyone can <code>mint(to, amount)</code>.</li>
             </ul>
@@ -1991,7 +2098,8 @@ error ZeroShares();`;
             ${docTable(['File', 'What it holds'], [
               ['<a href="./data/v1/index.json"><code>/data/v1/index.json</code></a>', 'The chains that have a file, with each file\'s last block. Start here.'],
               ['<a href="./data/v1/sepolia.json"><code>/data/v1/sepolia.json</code></a>', 'Sepolia: the test run 2 Stacker and the test run 6 registry.'],
-              ['<a href="./data/v1/ethereum.json"><code>/data/v1/ethereum.json</code></a>', 'Ethereum mainnet: the Stacker (launch #1409) and the ProjectRegistry (launch #1495); points count from each listing block.']
+              ['<a href="./data/v1/ethereum.json"><code>/data/v1/ethereum.json</code></a>', 'Ethereum mainnet: the Stacker (launch #1409) and the ProjectRegistry (launch #1495); points count from each listing block.'],
+              ['<a href="./data/v1/robinhood.json"><code>/data/v1/robinhood.json</code></a>', 'Robinhood Chain: the RemoteStacker (launch #1537) and the ProjectRegistry (launch #1561). A credit is a <code>Queued</code> event; sIMD is minted on Ethereum at delivery, so shares are 0 here; totals add waiting, delivered and tips.']
             ])}
             <h2 id="rules">What the numbers mean</h2>
             <ul>
@@ -2134,7 +2242,7 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
             <h2 id="trust">What you trust</h2>
             <p>Both contracts have no owner: nobody can withdraw, redirect or freeze anything, and the only way out of the RemoteStacker is the StackReceiver fixed at deployment. The route relies on LayerZero and on IMD's bridge settings, which IMD's team controls. Points are counted on the chain where the trade happened, when it happened; a slow delivery never changes them.</p>
             <h2 id="listing">Listing on other chains</h2>
-            <p>One registry per chain, with the same rules. On Robinhood Chain the ProjectRegistry (<code>0x814d…bca1</code>, launch #1561) is live since 2026-10-13: the oracle fee and bonds are paid in Robinhood Chain's IMD (<code>0x5f7b…7127</code>), the same token over IMD's bridge, and a listed project's <code>Queued</code> credits earn points from its listing block, counted in Robinhood Chain's own blocks. For now a project applies by calling <code>applyListing</code> directly; the Apply page and the dashboard will add Robinhood Chain next.</p>`
+            <p>One registry per chain, with the same rules. On Robinhood Chain the ProjectRegistry (<code>0x814d…bca1</code>, launch #1561) is live since 2026-10-13: the oracle fee and bonds are paid in Robinhood Chain's IMD (<code>0x5f7b…7127</code>), the same token over IMD's bridge, and a listed project's <code>Queued</code> credits earn points from its listing block, counted in Robinhood Chain's own blocks. Projects apply from the Apply page with the network switch on Robinhood.</p>`
         },
         {
           slug: 'roadmap',
@@ -2396,10 +2504,18 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
       }).catch(() => {});
     }
 
-    // Network switch (Ethereum by default; Sepolia for testing)
+    // Network switch (Ethereum by default; Robinhood Chain; Sepolia for testing), and in-page links
+    // that switch it (data-switch-net).
     document.querySelectorAll('.net-btn').forEach(b => b.addEventListener('click', () => {
       if (b.getAttribute('data-net') !== NET.key) setNetwork(b.getAttribute('data-net'));
     }));
+    document.addEventListener('click', (e) => {
+      const link = e.target.closest && e.target.closest('[data-switch-net]');
+      if (!link) return;
+      e.preventDefault();
+      const key = link.getAttribute('data-switch-net');
+      if (key !== NET.key) setNetwork(key);
+    });
     setNetwork(NET.key, false);
 
     // Hashchange listener

@@ -7,6 +7,7 @@ Read-only JSON files with every chain's cashback and points totals, rebuilt from
 | [`https://imdacc.fun/data/v1/index.json`](https://imdacc.fun/data/v1/index.json) | The chains that have a file, with each file's last block. Start here. |
 | [`https://imdacc.fun/data/v1/sepolia.json`](https://imdacc.fun/data/v1/sepolia.json) | Sepolia: the test run 2 Stacker and the test run 6 registry (since 2026-10-12; before, test runs 4 and 5). |
 | [`https://imdacc.fun/data/v1/ethereum.json`](https://imdacc.fun/data/v1/ethereum.json) | Ethereum mainnet: the Stacker of launch #1409 and the ProjectRegistry of launch #1495 (since 2026-10-13; before, `contracts.registry` was `null` and no credit earned points). |
+| [`https://imdacc.fun/data/v1/robinhood.json`](https://imdacc.fun/data/v1/robinhood.json) | Robinhood Chain (4663): the RemoteStacker of launch #1537 and the ProjectRegistry of launch #1561 (since 2026-10-13). A credit is a `Queued` event; see [Robinhood Chain](#robinhood-chain-a-remotestacker) below. |
 
 The builder is [`tools/snapshot/build.mjs`](../tools/snapshot/build.mjs) (chains in [`tools/snapshot/chains.json`](../tools/snapshot/chains.json)); the website's workflow runs it on a schedule, on every push to `main`, and on demand.
 
@@ -16,6 +17,7 @@ The builder is [`tools/snapshot/build.mjs`](../tools/snapshot/build.mjs) (chains
 - **Confirmed blocks only:** a file counts every event up to `blocks.to`, which stays 12 blocks behind the chain's head, so a reorg doesn't change it.
 - **Points:** 1 point per IMD stacked by a project **inside one of its listing periods**: a credit in block `b` counts when `from <= b` and (`to` is null or `b < to`). Credits before listing, after delisting, from unlisted contracts or from wallets count as IMD stacked but earn no points. A project's points are the IMD its traders stacked while it was listed.
 - **Checked:** the IMD of all events must equal the Stacker's `totalStacked()` at `blocks.to`, and each project's IMD and shares its `projectStacked` and `projectShares`. A file that fails the check isn't published; the previous one stays.
+- **Block numbers are the chain's own:** on Robinhood Chain the listing periods and the credits are both in Robinhood Chain blocks (the registry reads them from the ArbSys precompile, history 55), so `from <= b < to` compares like with like.
 - **Points are a record, not a promise.** Nothing is owed for them. Rate checks per credit (a credit outside 25-100 bps of its trade) aren't applied yet; when they are, the file's `version` goes up.
 
 ## Format
@@ -79,6 +81,17 @@ All amounts are **strings holding whole numbers in the token's smallest unit**, 
 | `traders[]` | Every address that received a credit, sorted by points, then IMD, with the same figures and a split per project (`projects`, keyed by project address). |
 
 `name` and `sourceUrl` are what the applicant typed: show them as untrusted text.
+
+### Robinhood Chain: a RemoteStacker
+
+On Robinhood Chain projects credit through the **RemoteStacker**, which holds each trader's cashback until anyone flushes it to Ethereum, where the StackReceiver deposits it into the sIMD vault. So `robinhood.json` has the same format with these differences:
+
+- **A credit is a `Queued(project, trader, recipient, imd)` event**, the points record, counted when the trade happened. `trader` is the address on Robinhood Chain; `recipient` is where the sIMD goes on Ethereum (the same address, unless a contract wallet registered another one). A contract wallet without an Ethereum recipient is paid plain IMD on Robinhood Chain (`Paid`): not a credit, no points.
+- **`shares` are `"0"`:** the vault mints the shares on Ethereum at delivery. `tokens.sImd` is the Ethereum vault, with `"chainId": 1`.
+- **`contracts.kind` is `"remote"`** (`"stacker"` in the other files), with `contracts.receiver` (the StackReceiver) and `contracts.receiverChainId` (1).
+- **`totals.waiting`, `totals.delivered`, `totals.tips`:** IMD still waiting on Robinhood Chain, IMD sent to Ethereum by flushes (`Delivering` events), and IMD paid to flushers as tips.
+- **Checked** against the RemoteStacker: the credits add up to `totalQueued()` and each project's to `projectQueued(project)`, and every recipient's queued minus delivered minus tips equals its `waiting(recipient)`, all at `blocks.to`.
+- **Confirmations:** 600 blocks (about a minute; Robinhood Chain makes about ten blocks a second).
 
 ## Stability
 

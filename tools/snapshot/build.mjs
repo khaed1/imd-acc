@@ -1,6 +1,7 @@
 // Builds the imd/acc data snapshot (format: docs/data-api.md), one file per chain plus an index.
-// Every run recomputes everything from the chain: the Stacker's Stacked events and the registry's
-// listing events up to a confirmed block, then checks the totals against the Stacker's own.
+// Every run recomputes everything from the chain: the Stacker's Stacked events (on a chain with a
+// RemoteStacker, `"kind": "remote"`, its Queued events) and the registry's listing events up to a
+// confirmed block, then checks the totals against the Stacker's (or RemoteStacker's) own.
 //
 // usage: node tools/snapshot/build.mjs [--out data/v1] [--chains tools/snapshot/chains.json]
 //                                      [--fallback https://imdacc.fun/data/v1/] [--rpc <url>]
@@ -21,6 +22,8 @@ const CHAINS = JSON.parse(readFileSync(args.chains || new URL("./chains.json", i
 // keccak256 of each event signature and function selectors (checked by tools/snapshot/test.sh with `cast`).
 const TOPIC = {
   Stacked: "0x7fbd7b0bc9aac1aa6f42ea64666fad17288ea759411a11f4231a958bc31838c6",
+  Queued: "0x230276f3d1b1026907db52455ecd27f5c8ca695d499d8e28d51d8a0c8851e2db",
+  Delivering: "0x7f64657283b1a94fa9965ae9e7c5b20fecc8244b996da445899d1f9175376f88",
   Applied: "0xb7e8095de4cf7043336c1e0ece05439714eb277c7cb5deed1b4f2479e4a6d173",
   Listed: "0x518fc40ea95a380fb5f45f1ad72398fdefb809c6dfebc59d2236045bd1d10267",
   Rejected: "0xf8a1bb90febbb3cd262033228521e367e8bba1bc6c61eee6bcfa744fafb31f4a",
@@ -38,6 +41,12 @@ const SEL = {
   projectStacked: "0x55109313",
   projectShares: "0x41581358",
   decimals: "0x313ce567",
+  // RemoteStacker (chains with "kind": "remote")
+  VAULT: "0x411557d1",
+  RECEIVER: "0xad7430cc",
+  totalQueued: "0x53ac4b66",
+  projectQueued: "0x11c10f98",
+  waiting: "0xe437786d",
 };
 
 // ---------------------------------------------------------------- RPC
@@ -113,11 +122,22 @@ async function buildChain(chain) {
   const block = await rpc("eth_getBlockByNumber", [hex(toBlock), false]);
   const stacker = chain.stacker.toLowerCase();
   const registry = chain.registry ? chain.registry.toLowerCase() : null;
+  // A RemoteStacker queues cashback here and delivers it to the sIMD vault on Ethereum, so the
+  // vault (and its decimals) live on another chain: chains.json names it and the contract must agree.
+  const remote = chain.kind === "remote";
 
   const imdAddr = addrWord((await call(rpc, stacker, SEL.IMD, toBlock)).slice(2));
-  const simdAddr = addrWord((await call(rpc, stacker, SEL.SIMD, toBlock)).slice(2));
+  const simdAddr = addrWord((await call(rpc, stacker, remote ? SEL.VAULT : SEL.SIMD, toBlock)).slice(2));
   const imdDecimals = Number(BigInt(await call(rpc, imdAddr, SEL.decimals, toBlock)));
-  const simdDecimals = Number(BigInt(await call(rpc, simdAddr, SEL.decimals, toBlock)));
+  let simdDecimals;
+  let receiver = null;
+  if (remote) {
+    if (simdAddr !== chain.vault.address.toLowerCase()) throw new Error(`${chain.name}: VAULT() is ${simdAddr}, chains.json says ${chain.vault.address}`);
+    simdDecimals = chain.vault.decimals;
+    receiver = addrWord((await call(rpc, stacker, SEL.RECEIVER, toBlock)).slice(2));
+  } else {
+    simdDecimals = Number(BigInt(await call(rpc, simdAddr, SEL.decimals, toBlock)));
+  }
 
   // Registry: every project's record and listing periods, from its events.
   const projects = new Map();
@@ -174,19 +194,37 @@ async function buildChain(chain) {
   }
   const listedAt = (p, b) => p.periods.some((r) => b >= r.from && (r.to === null || b < r.to));
 
-  // Stacker: every credit; points only inside a listing period of its project.
+  // Stacker: every credit; points only inside a listing period of its project. On a remote chain a
+  // credit is a Queued(project, trader, recipient, imd) event: no shares yet (the vault mints them on
+  // Ethereum at delivery), and a contract wallet paid plain IMD here (Paid) is not a credit.
   const traders = new Map();
   const stackLogs = await getLogs(rpc, stacker, chain.stackerBlock, toBlock);
   let totalImd = 0n;
   let totalShares = 0n;
   let totalPoints = 0n;
   let credits = 0;
+  const queuedTo = new Map(); // remote: Ethereum recipient -> IMD queued, delivered and tipped
+  const recipientOf = (r) => {
+    if (!queuedTo.has(r)) queuedTo.set(r, { queued: 0n, delivered: 0n, tips: 0n });
+    return queuedTo.get(r);
+  };
+  let delivered = 0n;
+  let tips = 0n;
   for (const log of stackLogs) {
-    if (log.topics[0] !== TOPIC.Stacked) continue;
+    if (remote && log.topics[0] === TOPIC.Delivering) {
+      const r = recipientOf(topicAddr(log.topics[2]));
+      r.delivered += uint(log.data, 0);
+      r.tips += uint(log.data, 1);
+      delivered += uint(log.data, 0);
+      tips += uint(log.data, 1);
+      continue;
+    }
+    if (log.topics[0] !== (remote ? TOPIC.Queued : TOPIC.Stacked)) continue;
     const p = project(topicAddr(log.topics[1]));
     const t = topicAddr(log.topics[2]);
-    const imd = uint(log.data, 0);
-    const shares = uint(log.data, 1);
+    const imd = uint(log.data, remote ? 1 : 0);
+    const shares = remote ? 0n : uint(log.data, 1);
+    if (remote) recipientOf(addrWord(word(log.data, 0))).queued += imd;
     const b = Number(log.blockNumber);
     const pts = listedAt(p, b) ? imd : 0n;
     if (!traders.has(t)) traders.set(t, { address: t, imd: 0n, shares: 0n, credits: 0, points: 0n, byProject: new Map() });
@@ -202,14 +240,27 @@ async function buildChain(chain) {
     credits += 1;
   }
 
-  // Integrity: the events must add up to the Stacker's own totals at the same block.
-  const onchainTotal = BigInt(await call(rpc, stacker, SEL.totalStacked, toBlock));
-  if (onchainTotal !== totalImd) throw new Error(`${chain.name}: events sum ${totalImd} but totalStacked() is ${onchainTotal} at ${toBlock}`);
+  // Integrity: the events must add up to the Stacker's own totals at the same block (on a remote
+  // chain: totalQueued, projectQueued, and each recipient's waiting balance).
+  const onchainTotal = BigInt(await call(rpc, stacker, remote ? SEL.totalQueued : SEL.totalStacked, toBlock));
+  if (onchainTotal !== totalImd) throw new Error(`${chain.name}: events sum ${totalImd} but the on-chain total is ${onchainTotal} at ${toBlock}`);
   for (const p of projects.values()) {
     if (p.credits === 0) continue;
+    if (remote) {
+      const q = BigInt(await call(rpc, stacker, SEL.projectQueued + padAddr(p.address), toBlock));
+      if (q !== p.imd) throw new Error(`${chain.name}: ${p.address} events ${p.imd} but projectQueued ${q}`);
+      continue;
+    }
     const s = BigInt(await call(rpc, stacker, SEL.projectStacked + padAddr(p.address), toBlock));
     const sh = BigInt(await call(rpc, stacker, SEL.projectShares + padAddr(p.address), toBlock));
     if (s !== p.imd || sh !== p.shares) throw new Error(`${chain.name}: ${p.address} events ${p.imd}/${p.shares} but on chain ${s}/${sh}`);
+  }
+  let waitingTotal = 0n;
+  for (const [r, v] of queuedTo) {
+    const w = v.queued - v.delivered - v.tips;
+    const onchain = BigInt(await call(rpc, stacker, SEL.waiting + padAddr(r), toBlock));
+    if (w !== onchain) throw new Error(`${chain.name}: ${r} events leave ${w} waiting but waiting() is ${onchain}`);
+    waitingTotal += w;
   }
 
   const status = (p) => {
@@ -229,15 +280,20 @@ async function buildChain(chain) {
     chain: { id: chain.id, name: chain.name },
     generatedAt: new Date().toISOString(),
     blocks: { from: chain.stackerBlock, to: toBlock, toTime: new Date(Number(block.timestamp) * 1000).toISOString() },
-    contracts: { stacker, registry, registryFromBlock: registry ? chain.registryBlock : null },
+    contracts: {
+      stacker, registry, registryFromBlock: registry ? chain.registryBlock : null,
+      kind: remote ? "remote" : "stacker",
+      ...(remote ? { receiver, receiverChainId: chain.vault.chainId } : {}),
+    },
     tokens: {
       imd: { address: imdAddr, decimals: imdDecimals },
-      sImd: { address: simdAddr, decimals: simdDecimals },
+      sImd: { address: simdAddr, decimals: simdDecimals, ...(remote ? { chainId: chain.vault.chainId } : {}) },
     },
     totals: {
       imd: s(totalImd), shares: s(totalShares), points: s(totalPoints), credits, traders: traders.size,
       projects: [...projects.values()].filter((p) => p.credits > 0 || p.inRegistry).length,
       listedProjects: [...projects.values()].filter((p) => status(p) === "listed").length,
+      ...(remote ? { waiting: s(waitingTotal), delivered: s(delivered), tips: s(tips) } : {}),
     },
     projects: [...projects.values()].filter((p) => p.credits > 0 || p.inRegistry).sort(desc).map((p) => ({
       address: p.address,
