@@ -133,7 +133,7 @@ The registry `main` will use on mainnet: test run 5's with version 3.1 of the pa
 
 ### Robinhood Chain (live, launch #1537, block 87,379,080)
 
-The multichain route ([design](docs/design.md#multichain-cashback-from-other-chains)): a **RemoteStacker** on Robinhood Chain (chain 4663) with the same `credit(trader, imdAmount)`, whose waiting cashback anyone can `flush` to Ethereum through IMD's own LayerZero bridge for a tip of up to 2%, and a **StackReceiver** on Ethereum (launch #1529, table below) that deposits each delivery into the sIMD vault for its trader. Both are live since 2026-10-13. Next: a Robinhood Chain ProjectRegistry, then a small live test.
+The multichain route ([design](docs/design.md#multichain-cashback-from-other-chains)): a **RemoteStacker** on Robinhood Chain (chain 4663) with the same `credit(trader, imdAmount)`, whose waiting cashback anyone can `flush` to Ethereum through IMD's own LayerZero bridge for a tip of up to 2%, and a **StackReceiver** on Ethereum (launch #1529, table below) that deposits each delivery into the sIMD vault for its trader. Both are live since 2026-10-13 and the route was tested live the same day: two flushes from Robinhood Chain reached the sIMD vault on Ethereum within about two minutes each ([history, section 52](docs/history.md#52-the-multichain-route-tested-live-robinhood-chain-to-the-simd-vault-twice-2026-10-13)). Next: a Robinhood Chain ProjectRegistry.
 
 | Contract | Address | Notes |
 |---|---|---|
