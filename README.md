@@ -163,7 +163,7 @@ The all-traders dashboard and leaderboards (top traders, top projects, 7-day and
 |---|---|
 | PLEA v10 (hook `0x3d4C…68Cc`, first Stacker) | Not listed. Its listing job for the first test page ([`jobs/3-list-plea.md`](jobs/3-list-plea.md)) is no longer needed, since test run 2 replaces that page. |
 | PLEA, next version (hook `0x2d5a…a8cc`, Stacker of test run 2) | **Listed** on the test run 4 registry at 50 bps from block 11,898,188 (2026-10-12, signed yes 11 of 12), and defended against a challenge (11 of 11). Not yet applied to test run 5's registry: its sell fallback to `sender` fails the version 3 trader rule, and PLEA's next hook (branch `testnet4`: hookData, else the router's `msgSender()`) is not deployed yet; the site and data API now count points on test run 5's registry. (On test run 2's registry, with the version 1 rules, its two applications split the panel.) |
-| imd/acc TrialVenue (`0xf252…6fef`, Sepolia, [`test/trial/TrialVenue.sol`](test/trial/TrialVenue.sol)) | **Listed** on the test run 5 registry at 50 bps from block 11,900,332 (2026-10-12, signed yes 11 of 14) and defended against a challenge (11 of 12): the trial's positive case, a small IMD/TRIAL pool with locked liquidity that credits 0.5% and burns 0.5% of each trade's fee. |
+| imd/acc TrialVenue (`0xf252…6fef`, Sepolia, [`test/trial/TrialVenue.sol`](test/trial/TrialVenue.sol)) | **Listed** on the test run 6 registry at 50 bps from block 11,902,743 (2026-10-13, signed yes 11 of 11, the first listing under rules version 3.1); earlier listed on test run 5 (11 of 14) and defended there (11 of 12). The trial's positive case: a small IMD/TRIAL pool with locked liquidity that credits 0.5% and burns 0.5% of each trade's fee. |
 
 ## Integrating a project
 
