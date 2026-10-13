@@ -1,0 +1,31 @@
+{
+  "action": "launch.open",
+  "input": {
+    "objective": "Launch imd/acc's RemoteStacker on Robinhood Chain (chain 4663) from this repository (the launch-robinhood branch, which is the robinhood branch without .github/workflows; do not add any workflow file): deploy only the RemoteStacker, exactly as launch.json lists it, wired to IMD on Robinhood Chain and to imd/acc's live StackReceiver on Ethereum. It is the Robinhood Chain end of imd/acc's multichain route: a project here calls the same credit(trader, imdAmount) as on Ethereum, the IMD waits per trader, and anyone flushes it to Ethereum through IMD's own LayerZero bridge, where the StackReceiver deposits it into the sIMD vault for each trader. imd/acc pays trading cashback to traders as staked IMD (sIMD), 0.25% to 1% of each trade at each project's choice, funded from the project's existing fees; only credits from listed projects earn points.\n\nDEPLOY (Robinhood Chain, one contract):\n- RemoteStacker(imd, receiver, vault, dstEid) = (0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127 IMD on Robinhood Chain, 0x1999a54f573dac75ce8ef62a555dba418c9b3d10 the live StackReceiver on Ethereum (launch #1529, block 26,181,997, source verified on Sourcify), 0x9efa934d9fad4ae28c998a40195646b965a97247 the Ethereum sIMD vault, named only so it is refused as a trader, 30101 Ethereum's LayerZero endpoint id). launch.json already lists exactly this.\n- src/multichain/RemoteStacker.sol and src/multichain/LayerZero.sol stay as they are: no owner; the constructor makes no external call. credit(trader, imdAmount) pulls the IMD from the caller (the project), refuses a zero trader (ZeroTrader) and the contract itself, IMD, the receiver and the vault (InvalidTrader), returns 0 for a zero amount, and adds the amount to the trader's waiting balance with an amount-weighted arrival clock (waiting, waitingSince; a balance past the 12-hour cap counts as exactly 12 hours in the average, so new cashback never pays a tip at once), emitting Queued(project, trader, recipient, imd), the points record; projectQueued and totalQueued count on chain. A trader with code (a smart-contract wallet, which may not exist at the same address on Ethereum) is paid plain IMD here at once (Paid, no points) unless it has named an Ethereum recipient for itself with setEthereumRecipient (only the wallet itself can; zero clears it); an EIP-7702 delegation (23 bytes starting 0xef0100) is a plain wallet and goes through the queue. flush(recipients) (at most 50; a recipient listed twice or with nothing waiting is skipped) takes from each listed recipient only the whole bridge steps of their waiting IMD (the step read from IMD's decimalConversionRate, 0.000001 IMD; dust below a step stays waiting, untipped, until it adds up to one), pays the caller a tip from that part, 2% per 12 hours waited and at most 2% (tipBps), rounded down to a step, delivers the rest, and sends the total in one IMD.send to the receiver with the compose message abi.encode(recipients, amounts) and executor options the contract builds (lzReceive 250,000 gas; lzCompose 200,000 + 80,000 per recipient), paying the bridge fee from msg.value (quoteFlush gives it; the endpoint refunds the excess to the caller). If the send fails, nothing changes. Nobody can withdraw, redirect or freeze anything; the only way out is to the receiver fixed at deployment. nonReentrant; OpenZeppelin SafeERC20.\n- test/mocks and test/trial hold test doubles and trial contracts only. Keep foundry.toml as it is (solc 0.8.26, cancun, 10,000 runs, bytecode_hash none).\n\nFACTS (read on Robinhood Chain 2026-10-13, block 87,284,919): IMD there is a standard LayerZero OFT (oftVersion 0x02e49c2c, 1; endpoint 0x6F475642a6e85809B1c36Fa62763669b1b48DD5B, eid 30416; 6 shared decimals; peers(30101) is Ethereum's IMD 0xd34a99bc0f67ae1bbd63c660e6d0b0dd03e263b7; no msgInspector; no enforced options for send-and-call). Robinhood Chain fork with the live IMD and endpoint (test/RobinhoodFork.t.sol): a flush burns the IMD here and the endpoint accepts the packet and the options; the bridge fee quoted 0.00068 ETH for two traders and 0.00107 ETH for fifty; the RemoteStacker's runtime is 7,856 bytes before launch #1529's audit lows were fixed in this tree (a capped waiting clock for old balances; tips only on the whole steps that leave): now 7,915 bytes. The StackReceiver it sends to is live and verified (launch #1529, Ethereum block 26,181,997, Sourcify full match); src/multichain/StackReceiver.sol here is its code byte for byte.\n\nTESTS: forge test passes (321 tests: 298 run offline; 21 fork tests run when ETH_RPC_URL, SEPOLIA_RPC_URL and ROBINHOOD_RPC_URL are set; 2 Stacker-manifest checks skip because this launch.json lists the RemoteStacker). test/RemoteStacker.t.sol (credits, the clock and tips, contract wallets, flushes, atomicity, the 50 cap), test/MultichainFlow.t.sol (the whole route with invariants), test/RobinhoodFork.t.sol (the live token and endpoint), test/Deployment.t.sol (this manifest, the empty-chain rehearsal, EIP-170 and forbidden opcodes). Keep all of them passing.\n\nREADME: once live, add the RemoteStacker's address to a Robinhood Chain Deployments table.",
+    "onchain": "evm_contracts",
+    "chainId": 4663,
+    "github": true,
+    "repoUrl": "https://github.com/khaed1/imd-acc.git",
+    "baseCommit": "119d80b34caf35ceefee29717ddf026d9a02c905",
+    "references": [
+      "evm-contracts-launch",
+      "defi-native",
+      "eth-security",
+      "eth-testing",
+      "pashov-skill",
+      "solidity-security-review"
+    ],
+    "shape": "chain",
+    "steps": [
+      {
+        "skill": "audit-imported-code"
+      },
+      {
+        "skill": "adapt-contract-project"
+      },
+      {
+        "skill": "adversarial-review"
+      }
+    ]
+  }
+}
