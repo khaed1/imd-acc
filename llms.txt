@@ -11,8 +11,16 @@ Data API (JSON, every chain's cashback and points, about every 15 minutes): http
 
 - Stacker: 0x06909f672301f28a810f78cfe7a754851269f4f0 (launch #1409; credit refuses the Stacker, the vault and the IMD token as trader)
 - ProjectRegistry: 0x7f53fa1543c682bb5de3f50c2cf3d1842ae57faa (launch #1495, panel rules version 3.1; a project that reports an owner() is applied for by that owner; fee 0.5 IMD, challenge bond 20 IMD, cooldown 7 days)
+- StackReceiver: 0x1999a54f573dac75ce8ef62a555dba418c9b3d10 (launch #1529; the Ethereum end of the multichain route: deposits cashback bridged from other chains into sIMD per trader)
 - IMD: 0xd34a99bc0f67ae1bbd63c660e6d0b0dd03e263b7
 - sIMD: 0x9efa934d9fad4ae28c998a40195646b965a97247
+
+## Robinhood Chain (4663)
+
+- RemoteStacker: 0x4de07c2fa46d5d6ed9ceb3f38ec56d3461b3e898 (launch #1537; the same credit(trader, imdAmount); cashback waits per trader and anyone flushes up to 50 traders to the StackReceiver on Ethereum through IMD's LayerZero bridge for a tip of up to 2%; Queued(project, trader, recipient, imd) is the points record)
+- IMD: 0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127 (the same OFT over IMD's bridge, 6 shared decimals)
+- Intake v2: 0xa43e6f75ee006411f79ac1c84120606c2330de82
+- ProjectRegistry: not launched yet; credits on Robinhood Chain earn no points until it is
 
 ## Addresses (Sepolia 11155111)
 
