@@ -6,7 +6,7 @@
 |---|---|
 | **Status** | **Ethereum mainnet: the Stacker** ([`0x0690…f4f0`](https://etherscan.io/address/0x06909f672301f28a810f78cfe7a754851269f4f0), launch #1409) **and the ProjectRegistry** ([`0x7f53…7faa`](https://etherscan.io/address/0x7f53fa1543c682bb5de3f50c2cf3d1842ae57faa), launch #1495) **are live.** Sepolia live: the Stacker (test run 2, launch #1294) and the ProjectRegistry the mainnet one will use (test run 6, launch #1463: rules version 3.1 and owner-only applications). Live listing trials, 2026-10-12: on test run 4, PLEA listed (11 of 12) and defended (11 of 11); on test run 5, under the version 3 rules, the negative case rejected 11 to 0 and a compliant trial venue listed (11 of 14) and defended (11 of 12), bond to its beneficiary ([history, sections 29 and 39 to 41](docs/history.md#41-test-run-5-trial-complete-the-trialvenue-defended-a-clearer-trader-rule-drafted-2026-10-12)). On test run 6 (rules version 3.1), the same venue listed 11 of 11 and defended 11 of 11, no split ([history, section 44](docs/history.md#44-test-run-6-trial-the-trialvenue-listed-11-of-11-2026-10-13)). Next: PLEA's new hook applies once deployed; the mainnet dashboard grows with the first listings. |
 | **Website** | https://imdacc.fun (GitHub Pages from this repository; the old https://khaed1.github.io/imd-acc/ redirects there): Ethereum mainnet by default, with a header switch to Sepolia for testing; live data, real wallet transactions, docs. Older IMD-hosted pages show older registries: https://imd-acc-sepolia-test-run-2.sites.imd.fun/ (test run 2) and https://imd-acc-sepolia-test-run.site.identitymd.eth.limo (the first run). |
-| **Contract code** | [`src/Stacker.sol`](src/Stacker.sol) (the cashback funnel) and [`src/ProjectRegistry.sol`](src/ProjectRegistry.sol) (the oracle-decided project list) in this repository. The first Sepolia launch's code, built and deployed by the [IMD swarm](https://imd.fun), is in the [launch-1129 repository](https://github.com/identity-md-launches/launch-1129-build-imd-acc-sepolia-test). |
+| **Contract code** | [`src/Stacker.sol`](src/Stacker.sol) (the cashback funnel), [`src/ProjectRegistry.sol`](src/ProjectRegistry.sol) (the oracle-decided project list) and [`src/multichain/`](src/multichain/) (the RemoteStacker and StackReceiver of the multichain route, built and tested, ready for launch: the receiver on Ethereum first, then the RemoteStacker on Robinhood Chain) in this repository. The first Sepolia launch's code, built and deployed by the [IMD swarm](https://imd.fun), is in the [launch-1129 repository](https://github.com/identity-md-launches/launch-1129-build-imd-acc-sepolia-test). |
 
 ## Contents
 
@@ -131,6 +131,10 @@ The registry `main` will use on mainnet: test run 5's with version 3.1 of the pa
 |---|---|---|
 | ProjectRegistry | [`0x30a3bb4d75989cb19f83607abc2dffe52a253384`](https://sepolia.etherscan.io/address/0x30a3bb4d75989cb19f83607abc2dffe52a253384) | Stacker `0x0457…314d`, fee `ORACLE_FEE()` 0.5 test IMD of `0x44a1…f89a` (read live from Intake v2), challenge bond 5 test IMD, cooldown 1 hour, panel 15/11, 1-day expiry, one beneficiary handoff per day, owed bonds, owner-only applications. |
 
+### Robinhood Chain (planned: the multichain route)
+
+Built and tested, not launched yet ([design](docs/design.md#multichain-cashback-from-other-chains)): a **RemoteStacker** on Robinhood Chain (chain 4663) with the same `credit(trader, imdAmount)`, whose waiting cashback anyone can `flush` to Ethereum through IMD's own LayerZero bridge for a tip of up to 2%, and a **StackReceiver** on Ethereum that deposits each delivery into the sIMD vault for its trader. The StackReceiver launches first ([`jobs/14-mainnet-stackreceiver-launch.md`](jobs/14-mainnet-stackreceiver-launch.md), `main`'s `launch.json`), then the RemoteStacker with its address ([`jobs/15-robinhood-remotestacker-launch.md`](jobs/15-robinhood-remotestacker-launch.md)), then a Robinhood Chain ProjectRegistry.
+
 ### Ethereum mainnet (live, launch #1409, block 26,176,629)
 
 | Contract | Address | Notes |
@@ -215,7 +219,7 @@ In v4, the hook's `sender` is the caller of PoolManager, commonly a router; it i
 1. **Sepolia test run 2:** the new Stacker and the ProjectRegistry on the live test pair, with a new test page, in one order. PLEA's next version then credits through the Stacker and applies to the registry. [`jobs/5-sepolia-v2-launch.md`](jobs/5-sepolia-v2-launch.md)
 2. **Deploy the Stacker on Ethereum mainnet** from this repository, with a full audit by the IMD swarm. PLEA mainnet needs its address. [`jobs/4-mainnet-launch.md`](jobs/4-mainnet-launch.md)
 3. **Indexer and mainnet dashboard:** the events kept in a fast table, then the site with each trader's cashback, points and value, and the leaderboards.
-4. **Multichain:** Robinhood Chain first (PondPad), then Base and Arbitrum. Cashback waits per trader on that chain and goes to Ethereum through IMD's own LayerZero bridge, paid by a small tip ([design](docs/design.md#multichain-cashback-from-other-chains)).
+4. **Multichain:** Robinhood Chain first (PondPad), then Base and Arbitrum. Cashback waits per trader on that chain and goes to Ethereum through IMD's own LayerZero bridge, paid by a small tip ([design](docs/design.md#multichain-cashback-from-other-chains)). Contracts built and tested on forks of both chains (2026-10-13); launches next: the StackReceiver on Ethereum (job 14), the RemoteStacker on Robinhood Chain (job 15), then a registry there.
 5. **v2: the ETH route** for projects whose fees are in ETH. `creditETH(trader)` records pending ETH; a public `flush()` swaps the batch to IMD through POOL4 behind a TWAP price guard, deposits it and splits the shares. Built once such a project wants in.
 6. **ProjectRegistry on mainnet** (done, launch #1495): the same contract, with a 20 IMD challenge bond and a 7-day cooldown ([design](docs/design.md#settings)).
 
@@ -228,11 +232,14 @@ README.md                 this page
 src/Stacker.sol           the Stacker (mainnet version)
 src/ProjectRegistry.sol   the project list decided by an IdentityMD oracle panel (Intake v2)
 src/oracle/               the oracle attestation verifier (EIP-712), shared with PLEA
-test/                     Foundry tests: unit, edge cases, fuzz, invariants, deployment, mainnet and Sepolia forks
-  mocks/                  TestIMD, TestSIMD (a copy of StakedIMD), a mock Intake: test doubles only
+src/multichain/           the multichain route: RemoteStacker (other chains), StackReceiver (Ethereum),
+                          and the LayerZero OFT interfaces they use (copied, not vendored)
+test/                     Foundry tests: unit, edge cases, fuzz, invariants, deployment, mainnet, Sepolia and
+                          Robinhood Chain forks
+  mocks/                  TestIMD, TestSIMD (a copy of StakedIMD), a mock Intake, a mock OFT and endpoint: test doubles only
   trial/                  SelfCredit and TrialVenue: the registry trial's negative and positive cases (Sepolia only)
 lib/                      forge-std, OpenZeppelin and Solady files, vendored
-launch.json               the next IMD launch's manifest: the mainnet ProjectRegistry (the Stacker is live)
+launch.json               the next IMD launch's manifest: the StackReceiver on Ethereum (the Stacker and registry are live)
 foundry.toml              solc 0.8.26, cancun, 10,000 optimizer runs, bytecode_hash none
 docs/
   listing.md              how a project gets listed: steps, checklist, fee guard, delisting
@@ -253,8 +260,10 @@ jobs/                     IMD swarm job prompts, in order
   6-sepolia-v2-site.md    the test run 2 site, after the launch: app and docs pages (done, job a9afb834)
   7-sepolia-v2-site-pages.md  its follow-up: separate pages, form errors, layout (done, job b874bae9)
   8-11                    the Sepolia registry runs 3 to 5 (8 audited but never delivered; 9, 10, 11 live)
-  12-mainnet-registry-launch.md  the mainnet ProjectRegistry (ready; re-pin to the version 3.1 code after test run 6)
-  13-sepolia-v6-launch.md the Sepolia registry with panel rules version 3.1 (ready, not paid)
+  12-mainnet-registry-launch.md  the mainnet ProjectRegistry (done, launch #1495)
+  13-sepolia-v6-launch.md the Sepolia registry with panel rules version 3.1 (done, launch #1463)
+  14-mainnet-stackreceiver-launch.md  the StackReceiver on Ethereum (ready, not paid)
+  15-robinhood-remotestacker-launch.md  the RemoteStacker on Robinhood Chain (after the receiver is live)
   requests/               exact request bodies for the ready jobs
 listings/sepolia.json     the list-file fallback (test run 2 uses the ProjectRegistry instead)
 .github/ISSUE_TEMPLATE/   the "List my project" application form
@@ -270,15 +279,17 @@ With [Foundry](https://getfoundry.sh) 1.8.3, the version IMD's verifier runs:
 
 ```
 forge build
-forge test                                                        # 225 tests; the 11 fork tests skip
+forge test                                                        # 292 tests; the 20 fork tests skip
 ETH_RPC_URL=https://ethereum-rpc.publicnode.com forge test --mc MainnetFork            # live IMD and sIMD
+ETH_RPC_URL=https://ethereum-rpc.publicnode.com forge test --mc StackReceiverMainnetFork # the live endpoint delivers to the receiver
 SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com forge test --mc SepoliaFork # live TestIMD and TestSIMD; RegistrySepoliaFork: the real Intake v2
+ROBINHOOD_RPC_URL=https://robinhood-rpc.publicnode.com forge test --mc RobinhoodFork   # a real send-and-call through the live IMD OFT
 forge fmt --check src test
 ```
 
-The mainnet fork tests check the live vault's facts (asset, renounced owner, not paused), a credit to a new and a repeat trader, and the one-block hold followed by a redeem. The Sepolia ones check a credit, its event and totals, and that a paused vault makes `credit` revert without moving anything; the registry's fork test sends a real application to Intake v2 and settles it.
+The mainnet fork tests check the live vault's facts (asset, renounced owner, not paused), a credit to a new and a repeat trader, and the one-block hold followed by a redeem. The Sepolia ones check a credit, its event and totals, and that a paused vault makes `credit` revert without moving anything; the registry's fork test sends a real application to Intake v2 and settles it. The multichain fork tests play a bridge arrival on Ethereum exactly as the live contracts do (IMD's `lzReceive`, then the endpoint's `lzCompose` into the StackReceiver) and send a real send-and-call from a RemoteStacker through Robinhood Chain's live IMD.
 
-**Branches:** `main`'s `launch.json` is the next mainnet launch's manifest: the ProjectRegistry, wired to the live mainnet Stacker (job 12). The `sepolia` branch differs only in `launch.json` (test run 6's registry, wired to the live Sepolia Stacker). `launch-mainnet` and `launch-sepolia` are those two without `.github/workflows`, for IMD's launches; never merge them back.
+**Branches:** `main`'s `launch.json` is the next mainnet launch's manifest: the StackReceiver, on the live IMD, sIMD and LayerZero endpoint (job 14). The `sepolia` branch differs only in `launch.json` (test run 6's registry, wired to the live Sepolia Stacker). `launch-mainnet` and `launch-sepolia` are those two without `.github/workflows`, for IMD's launches; never merge them back. A `robinhood` branch (and `launch-robinhood`) will carry the RemoteStacker's manifest once the receiver's address is known.
 
 **Working with IMD:** jobs are paid in IMD (0.5 IMD each) from the owner's wallet. Run the free `POST https://api.imd.fun/requests/check` before paying. Set hosting only with the job's `ipfs` field, never in the prompt text, or the agent tries to publish the site itself and blocks. Docs: https://imd.fun/docs.
 

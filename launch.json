@@ -2,17 +2,13 @@
   "kind": "evm_contracts",
   "contracts": [
     {
-      "contract": "ProjectRegistry",
+      "contract": "StackReceiver",
       "constructorArgs": [
-        "0xa43e6F75ee006411F79Ac1C84120606C2330DE82",
         "0xD34a99Bc0f67aE1bbd63C660e6d0b0dd03E263B7",
-        "0x06909F672301F28A810f78cfe7a754851269F4F0",
-        "0x5598Aa9146215Bc13eb26f2c692Ad1461Fd32982",
-        "1",
-        "20000000000000000000",
-        "604800"
+        "0x9Efa934D9fAd4AE28c998a40195646b965a97247",
+        "0x1a44076050125825900e736c501f859c50fE728c"
       ]
     }
   ],
-  "notes": "imd/acc on Ethereum mainnet, second launch: one contract, the ProjectRegistry, the list of projects whose cashback earns points, decided by IdentityMD oracle panels through Intake v2 (0xa43e...de82), paid in IMD (0xd34a...63b7). It names the live mainnet Stacker 0x0690...f4f0 (launch #1409) in its questions and never calls it; the Stacker is not redeployed. The code of Sepolia test run 5 (launch #1428) with one rule text clarified: version 3.1 of the panel rules (docs/panel-rules-v2.md; the trader rule rejects the router itself and accepts a contract the router's msgSender() reports) and owner-only applications (a project that reports an owner() is applied for by that owner or itself; NotProjectOwner otherwise). Settings agreed by the owner: challenge bond 20 IMD, challenge cooldown 7 days (604800 s); panel 15 seats with 11 agreeing and a 1-day expiry are constants. Each ask pays the oracle fee read live from the Intake (ORACLE_FEE(), 0.5 IMD). Answers are accepted only from the Intake, for its own open request, signed by the oracle signer 0x5598...2982 for this contract, within mainnet's 200,000 callback gas. A listed project's beneficiary may hand its points to another wallet at most once per day and never while a question is open. Settling or clearing a question never waits on paying a bond: a refused transfer is recorded in bondOwed and claimed with claimBond(to). Questions are filed under chain 1. No owner; its constructor makes no external call. Test doubles under test/mocks and test/trial are not deployed."
+  "notes": "imd/acc on Ethereum mainnet, third launch: one contract, the StackReceiver, the Ethereum end of imd/acc's multichain route. Cashback paid on other chains (Robinhood Chain first) waits in a RemoteStacker there and is sent to Ethereum through IMD's own LayerZero bridge (IMD is a standard OFT, 6 shared decimals) as a send-and-call: the bridged IMD is minted to this contract and the LayerZero endpoint (0x1a44...728c, eid 30101) then calls lzCompose with the list of traders and amounts, abi.encode(address[], uint256[]). The receiver deposits each amount into the sIMD vault (0x9efa...7247, ERC-4626, owner renounced) for its trader; a deposit the vault refuses pays that trader plain IMD instead; it keeps no IMD after a delivery. It accepts lzCompose only from the endpoint and only for composes the IMD token (0xd34a...63b7) queued, and requires the listed amounts to add up to the IMD that arrived, so whoever sends a message pays out only its own IMD. No owner, admin, pause or upgrade; the constructor makes no external call (the first delivery checks sIMD.asset() == IMD and approves the vault once). The live Stacker (0x0690...f4f0, launch #1409) and ProjectRegistry (0x7f53...7faa, launch #1495) are not redeployed. The RemoteStacker is a later launch on Robinhood Chain, naming this contract's address. Test doubles under test/mocks and test/trial are not deployed."
 }
