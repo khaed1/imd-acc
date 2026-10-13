@@ -88,6 +88,7 @@ Confirmed by the owner on 2026-10-11, for both chains.
 ### Known limits
 - **Blocking by spam:** for a project that reports an owner, only that owner or the project itself may apply (version 3, after IMD's mainnet audit reproduced a stranger re-applying for 0.5 IMD a round to keep a team out). A project without an owner (none, or renounced) can still be applied for by anyone, so someone can keep its application slot busy with wrong terms, one question at a time, for 0.5 IMD a try. Challenges stay open to anyone.
 - **Fixed oracle settings:** the signer and the action id (`oracle.request@oracle-1`) are fixed in the contract; the fee is read live from the Intake, and a zero price (the action retired) makes asking revert. The cooldown is capped at 365 days. If IMD changes them, a new registry is deployed, and the site reads both, so listing history is kept.
+- **The registry as beneficiary:** refused (`InvalidBeneficiary`) in `applyListing` and `setBeneficiary` since the mainnet launch (#1495): a defended bond paid to the registry's own address would be a token self-transfer that records nothing in `bondOwed`, so nobody could ever move it. Sepolia test run 6 predates the guard.
 - **Writer trust:** the Intake's writer can withhold an answer or pair one with the wrong request. That suits a listing decision, which can wait and be challenged.
 
 ### Tests
