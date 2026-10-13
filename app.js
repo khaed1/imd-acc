@@ -6,11 +6,11 @@
 (() => {
   'use strict';
 
-  // --- Constants & Addresses (Sepolia test run 5) ---
+  // --- Constants & Addresses ---
   const ADDRESSES = {
-    SEPOLIA_CHAIN_ID: '0xaa36a7', // 11155111
     STACKER: '0x0457276d7b036818b3eddc1a4a3fceda61e9314d', // test run 2, launch #1294
-    PROJECT_REGISTRY: '0x5f63cdead0f5f693b8964d82b56155f55645ccea', // test run 5, launch #1428
+    PROJECT_REGISTRY: '0x30a3bb4d75989cb19f83607abc2dffe52a253384', // test run 6, launch #1463, rules v3.1
+    REGISTRY_RUN5: '0x5f63cdead0f5f693b8964d82b56155f55645ccea', // launch #1428, rules v3
     REGISTRY_RUN4: '0xfe4470a42df0e77f7efb1b2e8135134a9cd7d102', // launch #1378, rules v2
     REGISTRY_RUN3: '0x9b466d1527322435dc7fdd97bc862b49c177fc2d', // launch #1371
     REGISTRY_RUN2: '0x3a3bfcb65614292b0ec7c62f9e3a5dac003b920e', // launch #1294, rules v1
@@ -22,18 +22,41 @@
     MAINNET_IMD: '0xd34a99bc0f67ae1bbd63c660e6d0b0dd03e263b7',
     MAINNET_SIMD: '0x9efa934d9fad4ae28c998a40195646b965a97247',
     MAINNET_STACKER: '0x06909f672301f28a810f78cfe7a754851269f4f0', // launch #1409
+    MAINNET_REGISTRY: '0x7f53fa1543c682bb5de3f50c2cf3d1842ae57faa', // launch #1495, rules v3.1
     ROBINHOOD_IMD: '0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127'
   };
 
-  // Blocks the live contracts were deployed at: reads start here.
-  const DEPLOY_BLOCK = { STACKER: 11891109, REGISTRY: 11899694 };
-
-  // Public Sepolia RPCs (all allow browser calls); tried in order.
-  const RPC_URLS = [
-    'https://ethereum-sepolia-rpc.publicnode.com',
-    'https://rpc.sepolia.ethpandaops.io',
-    'https://sepolia.drpc.org'
-  ];
+  // --- Networks: Ethereum mainnet by default, Sepolia for testing (the header switch) ---
+  // Public RPCs that allow browser calls, tried in order. Reads start at the deploy blocks.
+  const NETWORKS = {
+    ethereum: {
+      key: 'ethereum', name: 'Ethereum', badge: 'Mainnet', chainIdHex: '0x1', testnet: false,
+      rpcs: ['https://ethereum-rpc.publicnode.com', 'https://eth.drpc.org', 'https://eth.llamarpc.com'],
+      explorer: 'https://etherscan.io',
+      stacker: ADDRESSES.MAINNET_STACKER, stackerBlock: 26176629, stackerLaunch: 1409,
+      registry: '0x7f53fa1543c682bb5de3f50c2cf3d1842ae57faa', registryBlock: 26180923, registryLaunch: 1495, // launch #1495, rules v3.1
+      imd: ADDRESSES.MAINNET_IMD, simd: ADDRESSES.MAINNET_SIMD, feeToken: ADDRESSES.MAINNET_IMD,
+      imdLabel: 'IMD', feeLabel: 'IMD', vaultLabel: 'sIMD vault',
+      knownNames: {}
+    },
+    sepolia: {
+      key: 'sepolia', name: 'Sepolia', badge: 'Sepolia test run 6', chainIdHex: '0xaa36a7', testnet: true,
+      rpcs: ['https://ethereum-sepolia-rpc.publicnode.com', 'https://rpc.sepolia.ethpandaops.io', 'https://sepolia.drpc.org'],
+      explorer: 'https://sepolia.etherscan.io',
+      stacker: ADDRESSES.STACKER, stackerBlock: 11891109, stackerLaunch: 1294,
+      registry: ADDRESSES.PROJECT_REGISTRY, registryBlock: 11900978, registryLaunch: 1463,
+      imd: ADDRESSES.TEST_IMD, simd: ADDRESSES.TEST_SIMD, feeToken: ADDRESSES.ORACLE_FEE_TOKEN,
+      imdLabel: 'TestIMD', feeLabel: 'test IMD', vaultLabel: 'TestSIMD vault',
+      knownNames: {
+        '0x2d5a03d5bab98a4a435edad11813373963bca8cc': 'PLEA (hook)',
+        '0x3d1778be5f9e55f0df35acaf64a13efe2fe81488': 'SelfCredit (trial)',
+        '0xf2520b379021ae989bb0ebbd350a0c8571256fef': 'imd/acc TrialVenue'
+      }
+    }
+  };
+  let networkSaved = null;
+  try { networkSaved = localStorage.getItem('imd_acc_network'); } catch {}
+  let NET = NETWORKS[networkSaved] || NETWORKS.ethereum;
 
   const SEL = {
     credit: '0xef6506db', // credit(address,uint256)
@@ -69,12 +92,6 @@
     BeneficiarySet: '0x2906d223dc4163733bb374af8641c7e9ae256e2bae53c90e0c9a2be2e611ae44'
   };
 
-  // Contracts that credit through the Stacker without (yet) a registry application.
-  const KNOWN_NAMES = {
-    '0x2d5a03d5bab98a4a435edad11813373963bca8cc': 'PLEA (hook)',
-    '0x3d1778be5f9e55f0df35acaf64a13efe2fe81488': 'SelfCredit (trial)'
-  };
-
   const ASK_NAMES = ['None', 'Application', 'Challenge'];
   const MAX_UINT = 'f'.repeat(64);
 
@@ -97,7 +114,7 @@
     }
   };
 
-  // What Sepolia says: loaded from public RPCs, refreshed after every confirmed transaction.
+  // What the chain says: loaded from public RPCs, refreshed after every confirmed transaction.
   const live = {
     status: 'idle', // idle | loading | ready | error
     error: '',
@@ -181,16 +198,16 @@
 
   function blockText() {
     if (live.status === 'ready') return `Data at block ${live.block.toLocaleString('en-US')}`;
-    if (live.status === 'error') return 'Sepolia data unavailable';
-    return 'Loading Sepolia data';
+    if (live.status === 'error') return `${NET.name} data unavailable`;
+    return `Loading ${NET.name} data`;
   }
 
   function txLink(hash, label) {
-    return `<a class="mono" href="https://sepolia.etherscan.io/tx/${hash}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    return `<a class="mono" href="${NET.explorer}/tx/${hash}" target="_blank" rel="noopener noreferrer">${label}</a>`;
   }
 
   function addrLink(addr) {
-    return `<a class="mono" href="https://sepolia.etherscan.io/address/${addr}" target="_blank" rel="noopener noreferrer">${shortAddr(addr)}</a>`;
+    return `<a class="mono" href="${NET.explorer}/address/${addr}" target="_blank" rel="noopener noreferrer">${shortAddr(addr)}</a>`;
   }
 
   // --- ABI encoding and decoding (only the types the site needs) ---
@@ -244,10 +261,10 @@
     return new TextDecoder().decode(new Uint8Array(bytes));
   }
 
-  // --- Sepolia reads ---
+  // --- Chain reads ---
   async function rpc(method, params) {
     let lastError = null;
-    for (const url of RPC_URLS) {
+    for (const url of NET.rpcs) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 12000);
       try {
@@ -271,7 +288,7 @@
         clearTimeout(timer);
       }
     }
-    throw lastError || new Error('No Sepolia RPC answered');
+    throw lastError || new Error(`No ${NET.name} RPC answered`);
   }
 
   const ethCall = (to, data) => rpc('eth_call', [{ to, data }, 'latest']);
@@ -312,7 +329,7 @@
     if (!live.projects.has(key)) {
       live.projects.set(key, {
         address: key,
-        name: KNOWN_NAMES[key] || '',
+        name: NET.knownNames[key] || '',
         url: '',
         rateBps: 0,
         applicant: '',
@@ -358,13 +375,15 @@
     try {
       const latest = await rpc('eth_getBlockByNumber', ['latest', false]);
       const block = Number(latest.number);
+      const reg = NET.registry;
+      const zero = '0x' + '0'.repeat(64);
       const [fee, bond, cooldown, paused, stackLogs, regLogs] = await Promise.all([
-        ethCall(ADDRESSES.PROJECT_REGISTRY, SEL.ORACLE_FEE),
-        ethCall(ADDRESSES.PROJECT_REGISTRY, SEL.challengeBond),
-        ethCall(ADDRESSES.PROJECT_REGISTRY, SEL.challengeCooldown),
-        ethCall(ADDRESSES.TEST_SIMD, SEL.paused),
-        getLogs(ADDRESSES.STACKER, [TOPIC.Stacked], DEPLOY_BLOCK.STACKER, block),
-        getLogs(ADDRESSES.PROJECT_REGISTRY, [], DEPLOY_BLOCK.REGISTRY, block)
+        reg ? ethCall(reg, SEL.ORACLE_FEE) : zero,
+        reg ? ethCall(reg, SEL.challengeBond) : zero,
+        reg ? ethCall(reg, SEL.challengeCooldown) : zero,
+        ethCall(NET.simd, SEL.paused),
+        getLogs(NET.stacker, [TOPIC.Stacked], NET.stackerBlock, block),
+        reg ? getLogs(reg, [], NET.registryBlock, block) : []
       ]);
 
       live.projects = new Map();
@@ -395,7 +414,7 @@
         } else if (kind === 'Challenged') {
           entry.detail = `by ${shortAddr(topicAddress(t[2]))}: ${decString(log.data, Number(decUint(w[0])))}`;
         } else if (kind === 'Defended') {
-          entry.detail = `bond ${fmtUnits(decUint(w[0]), 18, 2)} test IMD to the beneficiary`;
+          entry.detail = `bond ${fmtUnits(decUint(w[0]), 18, 2)} ${NET.feeLabel} to the beneficiary`;
         } else if (kind === 'AskCleared') {
           entry.detail = `${ASK_NAMES[Number(decUint(w[0]))] || 'Question'} cleared: ${decBytes32Text(w[2]) || 'no answer'}`;
         } else if (kind === 'BeneficiarySet') {
@@ -428,7 +447,7 @@
 
       const registryProjects = [...live.projects.values()].filter(p => p.inRegistry);
       const records = await Promise.all(registryProjects.map(p =>
-        ethCall(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.projectOf, [['address', p.address]]))));
+        ethCall(NET.registry, encodeCall(SEL.projectOf, [['address', p.address]]))));
       registryProjects.forEach((p, i) => { p.record = decodeRecord(records[i]); });
 
       live.block = block;
@@ -455,14 +474,16 @@
     try {
       const mine = live.stacks.filter(s => s.trader === a.toLowerCase());
       const shares = mine.reduce((sum, s) => sum + s.shares, 0n);
+      const reg = NET.registry;
+      const zero = '0x' + '0'.repeat(64);
       const [imd, imdAllowance, simd, value, feeToken, feeAllowance, owed] = await Promise.all([
-        ethCall(ADDRESSES.TEST_IMD, encodeCall(SEL.balanceOf, [['address', a]])),
-        ethCall(ADDRESSES.TEST_IMD, encodeCall(SEL.allowance, [['address', a], ['address', ADDRESSES.STACKER]])),
-        ethCall(ADDRESSES.TEST_SIMD, encodeCall(SEL.balanceOf, [['address', a]])),
-        ethCall(ADDRESSES.TEST_SIMD, encodeCall(SEL.convertToAssets, [['uint', shares]])),
-        ethCall(ADDRESSES.ORACLE_FEE_TOKEN, encodeCall(SEL.balanceOf, [['address', a]])),
-        ethCall(ADDRESSES.ORACLE_FEE_TOKEN, encodeCall(SEL.allowance, [['address', a], ['address', ADDRESSES.PROJECT_REGISTRY]])),
-        ethCall(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.bondOwed, [['address', a]]))
+        ethCall(NET.imd, encodeCall(SEL.balanceOf, [['address', a]])),
+        ethCall(NET.imd, encodeCall(SEL.allowance, [['address', a], ['address', NET.stacker]])),
+        ethCall(NET.simd, encodeCall(SEL.balanceOf, [['address', a]])),
+        ethCall(NET.simd, encodeCall(SEL.convertToAssets, [['uint', shares]])),
+        ethCall(NET.feeToken, encodeCall(SEL.balanceOf, [['address', a]])),
+        reg ? ethCall(NET.feeToken, encodeCall(SEL.allowance, [['address', a], ['address', reg]])) : zero,
+        reg ? ethCall(reg, encodeCall(SEL.bondOwed, [['address', a]])) : zero
       ]);
       const first = (hex) => decUint(words(hex)[0]);
       live.wallet = {
@@ -487,6 +508,30 @@
     const el = document.activeElement;
     if (auto && el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
     render(true);
+  }
+
+  // --- Network switch (header) ---
+  function setNetwork(key, redraw = true) {
+    if (!NETWORKS[key]) return;
+    NET = NETWORKS[key];
+    try { localStorage.setItem('imd_acc_network', key); } catch {}
+    document.querySelectorAll('.net-btn').forEach(b => {
+      const on = b.getAttribute('data-net') === key;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const badge = document.getElementById('brand-badge');
+    if (badge) badge.textContent = NET.badge;
+    document.querySelectorAll('[data-net-explorer]').forEach(a => {
+      const which = a.getAttribute('data-net-explorer');
+      const addr = which === 'registry' ? NET.registry : NET.stacker;
+      a.href = addr ? `${NET.explorer}/address/${addr}` : '#/docs/contracts';
+      a.textContent = `${NET.name} ${which === 'registry' ? 'ProjectRegistry' : 'Stacker'}${addr ? '' : ' (launching)'}`;
+    });
+    if (!redraw) return;
+    Object.assign(live, { status: 'idle', error: '', block: 0, time: 0, fetchedAt: 0, fee: 0n, bond: 0n, cooldown: 0n, vaultPaused: false, stacks: [], projects: new Map(), outcomes: [], wallet: null });
+    render(true);
+    refreshLive();
   }
 
   // --- Theme Management ---
@@ -515,7 +560,7 @@
     }
   }
 
-  // --- Wallet transactions (Sepolia, estimate x 1.3) ---
+  // --- Wallet transactions (the selected network, estimate x 1.3) ---
   function walletError(e) {
     if (!e) return 'Transaction failed';
     if (e.code === 4001 || /user (rejected|denied)/i.test(e.message || '')) return 'Rejected in your wallet';
@@ -525,7 +570,7 @@
 
   async function connectWallet() {
     if (typeof window.ethereum === 'undefined') {
-      throw new Error('No browser wallet found. Install one (MetaMask, Rabby) to use Sepolia.');
+      throw new Error(`No browser wallet found. Install one (MetaMask, Rabby) to use ${NET.name}.`);
     }
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     if (!accounts || !accounts[0]) throw new Error('No account selected');
@@ -533,13 +578,13 @@
     return state.account;
   }
 
-  async function ensureSepolia() {
+  async function ensureChain() {
     if (!state.account) await connectWallet();
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    if (chainId !== ADDRESSES.SEPOLIA_CHAIN_ID) {
+    if (chainId !== NET.chainIdHex) {
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: ADDRESSES.SEPOLIA_CHAIN_ID }]
+        params: [{ chainId: NET.chainIdHex }]
       });
     }
   }
@@ -572,15 +617,15 @@
     throw new Error('Not confirmed after 3 minutes. Check the transaction in your wallet.');
   }
 
-  // Sends one transaction, waits for it, then reloads what Sepolia says.
+  // Sends one transaction, waits for it, then reloads what the chain says.
   async function sendTx(to, data, label) {
     if (state.busy) throw new Error('Another transaction is still running');
     state.busy = true;
     try {
-      await ensureSepolia();
+      await ensureChain();
       showToast(`${label}: confirm in your wallet`);
       const hash = await sendTxWithGas({ to, data });
-      showToast(`${label}: sent, waiting for Sepolia`);
+      showToast(`${label}: sent, waiting for ${NET.name}`);
       const receipt = await waitForReceipt(hash);
       if (receipt.status !== '0x1') throw new Error(`${label} failed on chain`);
       showToast(`${label}: confirmed`);
@@ -764,12 +809,12 @@
         <!-- Quick Summary Box -->
         <div class="dashboard-card" style="padding: 24px;">
           <div class="card-header-row" style="margin-bottom: 12px;">
-            <h3 class="card-title" style="font-size: 1.05rem;">Live Sepolia Network Status</h3>
-            <span class="pill pill-live">Test Run 5 Live</span>
+            <h3 class="card-title" style="font-size: 1.05rem;">Live ${NET.name} Network Status</h3>
+            <span class="pill pill-live">${NET.testnet ? 'Test Run 6 Live' : 'Mainnet Live'}</span>
           </div>
-          <p class="secondary" style="margin-bottom: 16px;">${blockText()} &middot; Stacker (launch #1294) and ProjectRegistry (launch #1428) live${live.status === 'ready' ? `: ${live.stacks.length} cashback credit${live.stacks.length === 1 ? '' : 's'} so far, ${[...live.projects.values()].filter(p => p.record && p.record.listed).length} listed project(s)` : ''}.</p>
+          <p class="secondary" style="margin-bottom: 16px;">${blockText()} &middot; Stacker (launch #${NET.stackerLaunch})${NET.registry ? ` and ProjectRegistry (launch #${NET.registryLaunch})` : ''} live${live.status === 'ready' ? `: ${live.stacks.length} cashback credit${live.stacks.length === 1 ? '' : 's'} so far, ${[...live.projects.values()].filter(p => p.record && p.record.listed).length} listed project(s)` : ''}.${NET.registry ? '' : ' The ProjectRegistry is being launched; listings open when it is live.'}</p>
           <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <a href="#/stack" class="btn btn-primary btn-sm">Your Stack Console</a>
+            <a href="#/stack" class="btn btn-primary btn-sm">Your Stack</a>
             <a href="#/docs" class="btn btn-secondary btn-sm">Read the Docs</a>
             <a href="#/projects" class="btn btn-secondary btn-sm">View Projects</a>
           </div>
@@ -810,9 +855,9 @@
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag"><span class="status-indicator"></span> Sepolia Test Run 5 &middot; ${blockText()}</div>
-          <h1 class="page-title">Your Stack & Testnet Console</h1>
-          <p class="page-desc">Track accumulated cashback, sIMD vault shares, and use the Sepolia testnet tools.</p>
+          <div class="page-tag"><span class="status-indicator"></span> ${NET.testnet ? 'Sepolia Test Run 6' : 'Ethereum Mainnet'} &middot; ${blockText()}</div>
+          <h1 class="page-title">Your Stack${NET.testnet ? ' & Testnet Console' : ''}</h1>
+          <p class="page-desc">${NET.testnet ? 'Track accumulated cashback, sIMD vault shares, and use the Sepolia testnet tools.' : 'Your cashback, sIMD vault shares, their value today and your points, read live from Ethereum.'}</p>
         </div>
 
         <div class="app-grid">
@@ -836,7 +881,7 @@
               <div class="stat-box">
                 <span class="stat-label">sIMD Shares Held</span>
                 <span class="stat-val" id="stat-shares">${w ? fmtUnits(w.simd, 24) + ' sIMD' : dash}</span>
-                <span class="stat-change">Live in the TestSIMD vault</span>
+                <span class="stat-change">Live in the ${NET.vaultLabel}</span>
               </div>
 
               <div class="stat-box">
@@ -866,15 +911,16 @@
                 </thead>
                 <tbody id="events-table-body">
                   ${live.status === 'ready'
-                    ? stackRows(shown, a ? 'No cashback for this wallet yet. Try "Stack to myself".' : 'No cashback credited yet.')
+                    ? stackRows(shown, a ? (NET.testnet ? 'No cashback for this wallet yet. Try "Stack to myself".' : 'No cashback for this wallet yet: trade in a participating project.') : 'No cashback credited yet.')
                     : `<tr><td colspan="5" class="secondary">${blockText()}</td></tr>`}
                 </tbody>
               </table>
             </div>
           </div>
 
-          <!-- Test Tools -->
+          <!-- Network status, and the test tools on Sepolia -->
           <div class="test-tools-box">
+            ${NET.testnet ? `
             <div class="tool-card">
               <h4 class="tool-title">Sepolia Test IMD Faucet</h4>
               <p class="tool-desc">Request 10,000 TestIMD per address every 24 hours to test trades and crediting.${w ? ` You hold <span class="mono">${fmtUnits(w.imd, 18, 2)}</span> tIMD.` : ''}</p>
@@ -892,18 +938,22 @@
                 <button class="btn btn-primary btn-sm" id="btn-self-stack">Stack</button>
               </div>
               <div class="secondary" style="font-size: 0.78rem;">Self-stacks are direct, no points.</div>
-            </div>
+            </div>` : `
+            <div class="tool-card">
+              <h4 class="tool-title">How to earn cashback</h4>
+              <p class="tool-desc">Trade in a <a href="#/projects" style="color: var(--accent-primary);">participating project</a>. Its hook sends 0.25% to 1% of each trade to the Stacker, which deposits it into the sIMD vault for you in the same transaction. Nothing to claim.${w ? ` You hold <span class="mono">${fmtUnits(w.imd, 18, 2)}</span> IMD.` : ''}</p>
+            </div>`}
 
             <div class="tool-card" style="background: var(--bg-card);">
-              <h4 class="tool-title">Sepolia Verification Status</h4>
-              <p class="tool-desc" style="margin-bottom: 8px;">Stacker at block <code>${DEPLOY_BLOCK.STACKER.toLocaleString('en-US')}</code> (launch #1294); ProjectRegistry at block <code>${DEPLOY_BLOCK.REGISTRY.toLocaleString('en-US')}</code> (launch #1428).</p>
+              <h4 class="tool-title">${NET.name} Network Status</h4>
+              <p class="tool-desc" style="margin-bottom: 8px;">Stacker at block <code>${NET.stackerBlock.toLocaleString('en-US')}</code> (launch #${NET.stackerLaunch}); ${NET.registry ? `ProjectRegistry at block <code>${NET.registryBlock.toLocaleString('en-US')}</code> (launch #${NET.registryLaunch}).` : 'ProjectRegistry: being launched.'}</p>
               <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
                 &bull; Vault status: ${live.status === 'ready'
                   ? `<span style="color: ${live.vaultPaused ? 'var(--status-pending)' : 'var(--status-live)'};">${live.vaultPaused ? 'Paused (credits revert)' : 'Active (Unpaused)'}</span>`
                   : '<span class="mono">&mdash;</span>'}<br>
-                &bull; Oracle fee: <span class="mono">${live.status === 'ready' ? fmtUnits(live.fee, 18, 2) + ' test IMD' : '&mdash;'}</span><br>
-                &bull; Challenge bond: <span class="mono">${live.status === 'ready' ? fmtUnits(live.bond, 18, 0) + ' test IMD' : '&mdash;'}</span><br>
-                &bull; Cooldown: <span class="mono">${live.status === 'ready' ? fmtDuration(live.cooldown) : '&mdash;'}</span>
+                ${NET.registry ? `&bull; Oracle fee: <span class="mono">${live.status === 'ready' ? fmtUnits(live.fee, 18, 2) + ' ' + NET.feeLabel : '&mdash;'}</span><br>
+                &bull; Challenge bond: <span class="mono">${live.status === 'ready' ? fmtUnits(live.bond, 18, 0) + ' ' + NET.feeLabel : '&mdash;'}</span><br>
+                &bull; Cooldown: <span class="mono">${live.status === 'ready' ? fmtDuration(live.cooldown) : '&mdash;'}</span>` : `&bull; Listings and points start when the ProjectRegistry is live.`}
               </div>
             </div>
           </div>
@@ -913,7 +963,7 @@
 
     document.getElementById('btn-faucet')?.addEventListener('click', async () => {
       try {
-        await sendTx(ADDRESSES.TEST_IMD, SEL.faucet, 'Faucet');
+        await sendTx(NET.imd, SEL.faucet, 'Faucet');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -921,7 +971,7 @@
 
     document.getElementById('btn-approve-imd')?.addEventListener('click', async () => {
       try {
-        await sendTx(ADDRESSES.TEST_IMD, SEL.approve + encAddress(ADDRESSES.STACKER) + MAX_UINT, 'Approve TestIMD');
+        await sendTx(NET.imd, SEL.approve + encAddress(NET.stacker) + MAX_UINT, 'Approve TestIMD');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -931,8 +981,8 @@
       try {
         const amount = parseUnits(document.getElementById('self-stack-amt')?.value || '0');
         if (amount === 0n) throw new Error('Enter an amount above 0');
-        await ensureSepolia();
-        await sendTx(ADDRESSES.STACKER, encodeCall(SEL.credit, [['address', state.account], ['uint', amount]]), 'Stack to myself');
+        await ensureChain();
+        await sendTx(NET.stacker, encodeCall(SEL.credit, [['address', state.account], ['uint', amount]]), 'Stack to myself');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -962,7 +1012,7 @@
     if (live.status !== 'ready') {
       rows = `<tr><td colspan="6" class="secondary">${blockText()}</td></tr>`;
     } else if (!projects.length) {
-      rows = `<tr><td colspan="6" class="secondary">No projects here yet. <a href="#/apply" style="color: var(--accent-primary);">Apply for a listing</a>.</td></tr>`;
+      rows = `<tr><td colspan="6" class="secondary">No projects here yet.${NET.registry ? ' <a href="#/apply" style="color: var(--accent-primary);">Apply for a listing</a>.' : ''}</td></tr>`;
     } else {
       rows = projects.map(p => {
         const st = projectState(p);
@@ -972,7 +1022,7 @@
               <div style="font-weight: 700; color: var(--text-primary);">${safe(p.name || shortAddr(p.address))}</div>
               <div class="secondary mono" style="font-size: 0.76rem;">${shortAddr(p.address)}</div>
             </td>
-            <td><span class="mono">Sepolia</span></td>
+            <td><span class="mono">${NET.name}</span></td>
             <td>${p.rateBps ? `<strong class="mono" style="color: var(--accent-light);">${(p.rateBps / 100).toFixed(2)}% (${p.rateBps} bps)</strong>` : '<span class="secondary">&mdash;</span>'}</td>
             <td class="mono">${fmtUnits(p.stacked, 18, 2)} IMD</td>
             <td><span class="pill ${st.cls}">${st.label}</span></td>
@@ -984,7 +1034,7 @@
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag">Test Run 5 Registry &middot; ${blockText()}</div>
+          <div class="page-tag">${NET.testnet ? 'Test Run 6 Registry' : 'Ethereum Mainnet'} &middot; ${blockText()}</div>
           <h1 class="page-title">Participating Projects</h1>
           <p class="page-desc">Only credits from listed projects earn points. Every project selects its rate between 0.25% and 1.0%.</p>
         </div>
@@ -1011,7 +1061,7 @@
             <tbody>${rows}</tbody>
           </table>
         </div>
-        <p class="secondary" style="font-size: 0.84rem;">Projects come from the test run 5 ProjectRegistry (<span class="mono">${shortAddr(ADDRESSES.PROJECT_REGISTRY)}</span>) and from contracts that credit through the Stacker. Planned: PLEA on Ethereum mainnet, and PondPad on Robinhood Chain through the <a href="#/docs/multichain" style="color: var(--accent-primary);">multichain route</a>.</p>
+        <p class="secondary" style="font-size: 0.84rem;">${NET.registry ? `Projects come from the ${NET.name} ProjectRegistry (<span class="mono">${shortAddr(NET.registry)}</span>) and from contracts that credit through the Stacker.` : `The ${NET.name} ProjectRegistry is being launched; until it is live, this page shows the contracts that credit through the Stacker, and no credit earns points.`} Next: PLEA on Ethereum mainnet, and PondPad on Robinhood Chain through the <a href="#/docs/multichain" style="color: var(--accent-primary);">multichain route</a>.</p>
       </div>
     `;
 
@@ -1037,7 +1087,7 @@
             <h1 class="page-title">Project Not Found</h1>
           </div>
           <div class="dashboard-card">
-            <p class="secondary" style="overflow-wrap: anywhere;">Contract <span class="mono">${safe(rawAddr)}</span> has not applied to the test run 5 ProjectRegistry and has no Stacker credits.</p>
+            <p class="secondary" style="overflow-wrap: anywhere;">Contract <span class="mono">${safe(rawAddr)}</span> has not applied to the ${NET.name} ProjectRegistry and has no Stacker credits.</p>
             <div style="margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
               <a href="#/projects" class="btn btn-secondary btn-sm">&larr; Back to Projects</a>
               <a href="#/apply" class="btn btn-primary btn-sm">Apply for Listing</a>
@@ -1066,21 +1116,23 @@
     const now = chainNow();
     const needed = live.fee + live.bond;
     let challengeBody;
-    if (!r || !r.listed) {
+    if (!NET.registry) {
+      challengeBody = `<p class="secondary">The ${NET.name} ProjectRegistry is being launched. Listings, challenges and points start when it is live.</p>`;
+    } else if (!r || !r.listed) {
       challengeBody = `<p class="secondary">Only listed projects can be challenged. ${p.inRegistry ? '' : 'This contract has not applied to the registry.'}</p>`;
     } else if (r.ask !== 0) {
       challengeBody = `<p class="secondary">A question about this project is open; it can be challenged once it settles.</p>`;
     } else {
       const wait = r.challengeOpenAt > now ? r.challengeOpenAt - now : 0;
       challengeBody = `
-        <p class="secondary" style="margin-bottom: 14px;">Anyone can challenge a listed project for the ${fmtUnits(live.fee, 18, 2)} test IMD fee plus a ${fmtUnits(live.bond, 18, 0)} test IMD bond. If the panel says it still meets the rules, the bond goes to its beneficiary; otherwise it is delisted and the bond comes back.</p>
+        <p class="secondary" style="margin-bottom: 14px;">Anyone can challenge a listed project for the ${fmtUnits(live.fee, 18, 2)} ${NET.feeLabel} fee plus a ${fmtUnits(live.bond, 18, 0)} ${NET.feeLabel} bond. If the panel says it still meets the rules, the bond goes to its beneficiary; otherwise it is delisted and the bond comes back.</p>
         ${wait ? `<p class="secondary" style="color: var(--status-pending); margin-bottom: 12px;">Cooldown active. Challenge opens in ${fmtDuration(Math.ceil(wait / 60) * 60)}.</p>` : ''}
         <div class="form-group">
           <label class="form-label" for="ch-reason">Reason for Challenge</label>
           <input type="text" id="ch-reason" class="form-input" maxlength="280" placeholder="State reason (max 280 chars)...">
           <div id="ch-reason-error" class="field-error"></div>
         </div>
-        <button class="btn btn-secondary btn-sm" id="btn-submit-challenge"${wait ? ' disabled' : ''}>Submit Challenge (${fmtUnits(needed, 18, 1)} test IMD)</button>`;
+        <button class="btn btn-secondary btn-sm" id="btn-submit-challenge"${wait ? ' disabled' : ''}>Submit Challenge (${fmtUnits(needed, 18, 1)} ${NET.feeLabel})</button>`;
     }
 
     const expirable = r && r.ask !== 0 && now > r.askedAt + 86400;
@@ -1133,14 +1185,14 @@
       }
       if (err) err.textContent = '';
       try {
-        await ensureSepolia();
+        await ensureChain();
         await loadWallet();
         const w = live.wallet;
-        if (!w || w.feeToken < needed) throw new Error(`You need ${fmtUnits(needed, 18, 1)} test IMD: use "Get 10 test IMD" on the Apply page`);
+        if (!w || w.feeToken < needed) throw new Error(`You need ${fmtUnits(needed, 18, 1)} ${NET.feeLabel}${NET.testnet ? ': use "Get 10 test IMD" on the Apply page' : ' in this wallet'}`);
         if (w.feeAllowance < needed) {
-          await sendTx(ADDRESSES.ORACLE_FEE_TOKEN, SEL.approve + encAddress(ADDRESSES.PROJECT_REGISTRY) + encUint(needed), 'Approve fee and bond');
+          await sendTx(NET.feeToken, SEL.approve + encAddress(NET.registry) + encUint(needed), 'Approve fee and bond');
         }
-        await sendTx(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.challengeForBeneficiary, [['address', p.address], ['string', reason], ['address', r.beneficiary]]), 'Challenge');
+        await sendTx(NET.registry, encodeCall(SEL.challengeForBeneficiary, [['address', p.address], ['string', reason], ['address', r.beneficiary]]), 'Challenge');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -1148,7 +1200,7 @@
 
     document.getElementById('btn-expire')?.addEventListener('click', async () => {
       try {
-        await sendTx(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.expire, [['address', p.address]]), 'Clear question');
+        await sendTx(NET.registry, encodeCall(SEL.expire, [['address', p.address]]), 'Clear question');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -1186,11 +1238,11 @@
 
   function applyStatus() {
     const w = live.wallet;
-    if (!state.account) return 'Connect a wallet on Sepolia to apply.';
-    if (!w || live.status !== 'ready') return 'Reading your balance from Sepolia...';
-    if (w.feeToken < live.fee) return `You need ${fmtUnits(live.fee, 18, 2)} test IMD for the fee: use "Get 10 test IMD".`;
-    if (w.feeAllowance < live.fee) return `Approve the ${fmtUnits(live.fee, 18, 2)} test IMD fee to the registry.`;
-    return `Ready: the ${fmtUnits(live.fee, 18, 2)} test IMD fee is approved.`;
+    if (!state.account) return `Connect a wallet on ${NET.name} to apply.`;
+    if (!w || live.status !== 'ready') return `Reading your balance from ${NET.name}...`;
+    if (w.feeToken < live.fee) return `You need ${fmtUnits(live.fee, 18, 2)} ${NET.feeLabel} for the fee${NET.testnet ? ': use "Get 10 test IMD"' : ''}.`;
+    if (w.feeAllowance < live.fee) return `Approve the ${fmtUnits(live.fee, 18, 2)} ${NET.feeLabel} fee to the registry.`;
+    return `Ready: the ${fmtUnits(live.fee, 18, 2)} ${NET.feeLabel} fee is approved.`;
   }
 
   function renderApply() {
@@ -1199,10 +1251,28 @@
     const w = live.wallet;
     const open = allProjects().filter(p => p.record && p.record.ask !== 0);
 
+    if (!NET.registry) {
+      appRoot.innerHTML = `
+        <div class="page-view">
+          <div class="page-header-block">
+            <div class="page-tag">Ethereum Mainnet &middot; ${blockText()}</div>
+            <h1 class="page-title">Apply for Project Listing</h1>
+            <p class="page-desc">List your project on the ownerless ProjectRegistry so your traders' cashback credits earn points.</p>
+          </div>
+          <div class="dashboard-card">
+            <h3 class="card-title" style="margin-bottom: 12px;">The Ethereum ProjectRegistry is being launched</h3>
+            <p class="secondary" style="margin-bottom: 12px;">The IMD swarm is auditing and deploying it from the public repository (the code tested live on Sepolia test run 6). Applications open on this page when it is live: the project's owner applies for 0.5 IMD, an IdentityMD oracle panel answers against the <a href="#/docs/listing" style="color: var(--accent-primary);">listing rules</a>, and points count from the block a project is listed.</p>
+            <p class="secondary">Until then, test your integration on Sepolia: switch the network in the header, get test IMD from the faucet on <a href="#/stack" style="color: var(--accent-primary);">Your stack</a>, and apply to the test registry here. See <a href="#/docs/testing" style="color: var(--accent-primary);">Testing on Sepolia</a>.</p>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     appRoot.innerHTML = `
       <div class="page-view">
         <div class="page-header-block">
-          <div class="page-tag">Test Run 5 Registry &middot; ${blockText()}</div>
+          <div class="page-tag">${NET.testnet ? 'Test Run 6 Registry' : 'Ethereum Mainnet Registry'} &middot; ${blockText()}</div>
           <h1 class="page-title">Apply for Project Listing</h1>
           <p class="page-desc">List your project on the ownerless ProjectRegistry so your traders' cashback credits earn points.</p>
         </div>
@@ -1242,7 +1312,7 @@
             </div>
 
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px;">
-              <button class="btn btn-secondary btn-sm" id="btn-get-feetoken">Get 10 test IMD</button>
+              ${NET.testnet ? '<button class="btn btn-secondary btn-sm" id="btn-get-feetoken">Get 10 test IMD</button>' : ''}
               <button class="btn btn-secondary btn-sm" id="btn-approve-fee">Approve fee</button>
               <button class="btn btn-primary btn-sm" id="btn-apply-listing">Apply for listing</button>
             </div>
@@ -1275,12 +1345,12 @@
                 ${live.status !== 'ready' ? blockText() : live.outcomes.length ? live.outcomes.slice(0, 6).map(o => {
                   const p = live.projects.get(o.project);
                   return `&bull; <a href="#/projects/${o.project}">${safe(p?.name || shortAddr(o.project))}</a>: ${o.kind}${o.detail ? ` (${safe(o.detail)})` : ''}`;
-                }).join('<br>') : 'No outcomes yet on the test run 5 registry.'}
+                }).join('<br>') : `No outcomes yet on the ${NET.name} registry.`}
               </p>
 
               ${w && w.bondOwed > 0n ? `
                 <h3 class="card-title" style="margin-top: 24px; margin-bottom: 12px;">Bonds Owed to You</h3>
-                <p class="secondary" style="font-size: 0.84rem; margin-bottom: 10px;"><span class="mono">${fmtUnits(w.bondOwed, 18, 2)}</span> test IMD the token couldn't pay you at settlement.</p>
+                <p class="secondary" style="font-size: 0.84rem; margin-bottom: 10px;"><span class="mono">${fmtUnits(w.bondOwed, 18, 2)}</span> ${NET.feeLabel} the token couldn't pay you at settlement.</p>
                 <button class="btn btn-secondary btn-sm" id="btn-claim-bond">Claim to this wallet</button>
               ` : ''}
             </div>
@@ -1302,7 +1372,7 @@
         const ids = ['project', 'name', 'url', 'rate', 'beneficiary'];
         if (ids.some(id => validateApply(id, f[id]))) return;
         try {
-          const ret = await ethCall(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.applyQuestion, [
+          const ret = await ethCall(NET.registry, encodeCall(SEL.applyQuestion, [
             ['address', f.project.trim()], ['string', f.name.trim()], ['string', f.url.trim()], ['uint', f.rate.trim()], ['address', f.beneficiary.trim()]
           ]));
           f.question = decString(ret, Number(decUint(words(ret)[0])));
@@ -1332,9 +1402,9 @@
 
     document.getElementById('btn-get-feetoken')?.addEventListener('click', async () => {
       try {
-        await ensureSepolia();
+        await ensureChain();
         note('');
-        await sendTx(ADDRESSES.ORACLE_FEE_TOKEN, encodeCall(SEL.mint, [['address', state.account], ['uint', 10n * 10n ** 18n]]), 'Get 10 test IMD');
+        await sendTx(NET.feeToken, encodeCall(SEL.mint, [['address', state.account], ['uint', 10n * 10n ** 18n]]), 'Get 10 test IMD');
       } catch (e) {
         note(walletError(e));
       }
@@ -1343,7 +1413,7 @@
     document.getElementById('btn-approve-fee')?.addEventListener('click', async () => {
       try {
         note('');
-        await sendTx(ADDRESSES.ORACLE_FEE_TOKEN, SEL.approve + encAddress(ADDRESSES.PROJECT_REGISTRY) + encUint(live.fee), 'Approve fee');
+        await sendTx(NET.feeToken, SEL.approve + encAddress(NET.registry) + encUint(live.fee), 'Approve fee');
       } catch (e) {
         note(walletError(e));
       }
@@ -1361,26 +1431,26 @@
         return;
       }
       try {
-        note('Checking the project on Sepolia...');
+        note(`Checking the project on ${NET.name}...`);
         const project = f.project.trim();
         const code = await rpc('eth_getCode', [project, 'latest']);
         if (!code || code === '0x') throw new Error('That address has no contract code: only contracts can apply');
-        const rec = decodeRecord(await ethCall(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.projectOf, [['address', project]])));
+        const rec = decodeRecord(await ethCall(NET.registry, encodeCall(SEL.projectOf, [['address', project]])));
         if (rec.listed) throw new Error('This project is already listed');
         if (rec.ask !== 0) throw new Error('This project already has an open question');
-        await ensureSepolia();
+        await ensureChain();
         await loadWallet();
         // A project that reports an owner() can only be applied for by that owner or itself.
         let owner = null;
         try {
-          owner = decAddress(words(await ethCall(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.projectOwner, [['address', project]])))[0]).toLowerCase();
+          owner = decAddress(words(await ethCall(NET.registry, encodeCall(SEL.projectOwner, [['address', project]])))[0]).toLowerCase();
         } catch {}
         if (owner && owner !== '0x0000000000000000000000000000000000000000' && owner !== state.account && project.toLowerCase() !== state.account) {
           throw new Error(`Only this project's owner can apply for it: connect ${owner}`);
         }
         if (!live.wallet || live.wallet.feeToken < live.fee || live.wallet.feeAllowance < live.fee) throw new Error(applyStatus());
         note('');
-        await sendTx(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.applyListing, [
+        await sendTx(NET.registry, encodeCall(SEL.applyListing, [
           ['address', project], ['string', f.name.trim()], ['string', f.url.trim()], ['uint', f.rate.trim()], ['address', f.beneficiary.trim()]
         ]), 'Apply for listing');
         note('Applied: the oracle panel usually answers within minutes.');
@@ -1391,7 +1461,7 @@
 
     document.getElementById('btn-claim-bond')?.addEventListener('click', async () => {
       try {
-        await sendTx(ADDRESSES.PROJECT_REGISTRY, encodeCall(SEL.claimBond, [['address', state.account]]), 'Claim bond');
+        await sendTx(NET.registry, encodeCall(SEL.claimBond, [['address', state.account]]), 'Claim bond');
       } catch (e) {
         showToast(walletError(e));
       }
@@ -1448,7 +1518,7 @@
                       <td><strong>#${i + 1}</strong></td>
                       <td>${addrLink(t)}${t === state.account ? ' (You)' : ''}</td>
                       <td><strong class="mono" style="color: var(--accent-light);">${fmtUnits(v, 18, 2)}</strong></td>
-                    </tr>`).join('') : '<tr><td colspan="3" class="secondary">No points yet: only credits from projects listed on the test run 5 registry earn points.</td></tr>')}
+                    </tr>`).join('') : `<tr><td colspan="3" class="secondary">No points yet: only credits from projects listed on the ${NET.name} registry earn points.</td></tr>`)}
                   ${mine !== null && !loading && !points.has(state.account) ? `
                     <tr style="background: var(--bg-elevated);">
                       <td>-</td>
@@ -1517,8 +1587,8 @@
       </div>`;
   }
 
-  function docAddr(addr) {
-    return `<a class="mono" style="white-space: nowrap;" href="${EXPLORER.sepolia}${addr}" target="_blank" rel="noopener noreferrer" title="${addr}">${shortAddr(addr)} &nearr;</a>`;
+  function docAddr(addr, mainnet = false) {
+    return `<a class="mono" style="white-space: nowrap;" href="${mainnet ? EXPLORER.mainnet : EXPLORER.sepolia}${addr}" target="_blank" rel="noopener noreferrer" title="${addr}">${shortAddr(addr)} &nearr;</a>`;
   }
 
   function docContract(name, pill, pillClass, addr, desc, explorer) {
@@ -1602,7 +1672,7 @@ error ZeroShares();`;
               <li><strong>sIMD vault</strong>: IMD's own ERC-4626 staking vault. imd/acc only deposits into it.</li>
             </ul>
             <h2 id="status">Where it stands</h2>
-            <p>The Stacker and the ProjectRegistry are live on Sepolia (latest: test run 5, launch #1428). The Stacker is live on Ethereum mainnet (launch #1409), against the real IMD and sIMD. See <a href="#/docs/contracts">Contracts</a> for every address and <a href="#/docs/roadmap">Roadmap</a> for what comes next.</p>
+            <p>Both contracts are live on Ethereum mainnet: the Stacker (launch #1409, 2026-10-12), against the real IMD and sIMD, and the ProjectRegistry (launch #1495, 2026-10-13), which decides listings and points. Sepolia keeps a test Stacker and the test run 6 registry (launch #1463) for integrators. See <a href="#/docs/contracts">Contracts</a> for every address and <a href="#/docs/roadmap">Roadmap</a> for what comes next.</p>
             <div class="docs-callout"><p>imd/acc is inspired by TokenWorks' btc/acc: the same idea of turning trading activity into a growing stack, here in staked IMD.</p></div>`
         },
         {
@@ -1753,14 +1823,14 @@ error ZeroShares();`;
             <h2 id="steps">Steps</h2>
             <ol>
               <li><strong>Integrate</strong> following the <a href="#/docs/integration">integration guide</a>, and verify your source.</li>
-              <li><strong>Apply.</strong> Anyone calls <code>applyListing(project, name, sourceUrl, rateBps, beneficiary)</code> (or uses the <a href="#/apply">Apply</a> page) and pays the oracle fee, read live from the Intake: 0.5 IMD today.</li>
+              <li><strong>Apply.</strong> The project's owner (what its <code>owner()</code> returns), or the project contract itself, calls <code>applyListing(project, name, sourceUrl, rateBps, beneficiary)</code> (or uses the <a href="#/apply">Apply</a> page) and pays the oracle fee, read live from the Intake: 0.5 IMD today. A project without an owner can be applied for by anyone.</li>
               <li><strong>The panel answers</strong> within minutes. 15 seats, 11 must agree. <strong>Yes</strong> lists the project from that block; <strong>no</strong> rejects it, and it can apply again.</li>
               <li><strong>No answer</strong> (a split panel or a refused question) clears the application; it can be sent again at once. Nothing is listed.</li>
             </ol>
             <h2 id="rules">What the panel checks</h2>
             ${docTable(['Rule', 'In short'], [
               ['trading', 'Every credit happens inside a trade, for that trade\'s trader, with IMD from that trade\'s fees.'],
-              ['trader', 'The project never picks who is credited; the hookData address (else the sender) counts as the trader.'],
+              ['trader', 'The project never picks who is credited: valid router hookData, else the router\'s msgSender(), else sender only if it has no code; never tx.origin, never the router itself. A contract msgSender() reports is a valid trader.'],
               ['otherPayouts', 'Cashback paid outside the Stacker (for example the plain-IMD fallback) is allowed and simply earns no points.'],
               ['rate', 'Each credit is the stated rate of its trade, between 25 and 100 bps.'],
               ['feeGuard', 'The parts of the fee that leave for good add up to at least the cashback, for every allowed setting.'],
@@ -1777,7 +1847,7 @@ error ZeroShares();`;
               <li><code>expire(project)</code> lets anyone clear a question that can no longer be answered, after a day or once the Intake completed it.</li>
             </ul>
             <h2 id="settings">Settings</h2>
-            ${docTable(['Setting', 'Sepolia', 'Ethereum (planned)'], [
+            ${docTable(['Setting', 'Sepolia', 'Ethereum mainnet'], [
               ['Oracle fee', '0.5 test IMD', '0.5 IMD'],
               ['Challenge bond', '5 test IMD', '20 IMD'],
               ['Challenge cooldown', '1 hour', '7 days'],
@@ -1794,7 +1864,8 @@ error ZeroShares();`;
           body: `
             <h2 id="tokens">Get test tokens</h2>
             <ul>
-              <li><strong>TestIMD</strong> (<code>0x2b69…1e82</code>): call <code>faucet()</code> for 10,000 tIMD per address every 24 hours, or use <a href="#/stack">Your stack</a>.</li>
+              <li><strong>Switch the site to Sepolia</strong> with the network switch in the header: every page then reads the Sepolia test run 6 registry and the test Stacker, and <a href="#/stack">Your stack</a> shows the faucet and a "stack to myself" tool. The choice is remembered in your browser.</li>
+              <li><strong>TestIMD</strong> (<code>0x2b69…1e82</code>): call <code>faucet()</code> for 10,000 tIMD per address every 24 hours, or use the faucet on <a href="#/stack">Your stack</a> in Sepolia mode.</li>
               <li><strong>Oracle test IMD</strong> (<code>0x44a1…f89a</code>): pays the registry's oracle fee; anyone can <code>mint(to, amount)</code>.</li>
             </ul>
             <h2 id="credit">Try a credit</h2>
@@ -1818,7 +1889,7 @@ error ZeroShares();`;
             <h2 id="sepolia">Sepolia (chain 11155111)</h2>
             <div class="contracts-grid">
               ${docContract('Stacker', 'Live', 'pill-live', ADDRESSES.STACKER, 'The cashback funnel every project calls (launch #1294). The mainnet Stacker adds one check: it refuses the Stacker, the vault and the IMD token as the trader.', EXPLORER.sepolia)}
-              ${docContract('ProjectRegistry', 'Live', 'pill-live', ADDRESSES.PROJECT_REGISTRY, 'The current registry (test run 5, launch #1428): rules v3, owner-only applications, one handoff per day, owed bonds.', EXPLORER.sepolia)}
+              ${docContract('ProjectRegistry', 'Live', 'pill-live', ADDRESSES.PROJECT_REGISTRY, 'The current registry (test run 6, launch #1463): rules v3.1 (the router itself is the rejected recipient; a contract msgSender() reports is a valid trader), owner-only applications, one handoff per day, owed bonds.', EXPLORER.sepolia)}
               ${docContract('TestIMD', 'Sepolia', 'pill-live', ADDRESSES.TEST_IMD, 'Test IMD with a faucet: 10,000 tIMD per address every 24 hours.', EXPLORER.sepolia)}
               ${docContract('TestSIMD vault', 'Sepolia', 'pill-live', ADDRESSES.TEST_SIMD, 'A copy of StakedIMD whose owner can pause it, to test fallbacks.', EXPLORER.sepolia)}
               ${docContract('Oracle test IMD', 'Sepolia', 'pill-live', ADDRESSES.ORACLE_FEE_TOKEN, 'Pays the registry\'s oracle fee and bonds; anyone can mint it.', EXPLORER.sepolia)}
@@ -1829,10 +1900,11 @@ error ZeroShares();`;
               ${docContract('IMD', 'Mainnet', 'pill-live', ADDRESSES.MAINNET_IMD, 'Standard 18-decimal ERC-20 (a LayerZero OFT), no transfer fee.', EXPLORER.mainnet)}
               ${docContract('sIMD vault', 'Mainnet', 'pill-live', ADDRESSES.MAINNET_SIMD, 'ERC-4626 staking vault. Owner renounced: nobody can pause it or sweep its funds.', EXPLORER.mainnet)}
               ${docContract('Stacker', 'Live', 'pill-live', ADDRESSES.MAINNET_STACKER, 'Launch #1409, block 26,176,629: the cashback funnel against the real IMD and sIMD, audited by the IMD swarm. Source verified on Sourcify.', EXPLORER.mainnet)}
-              ${docContract('ProjectRegistry', 'Planned', 'pill-planned', '', 'A later launch: the Sepolia registry\'s code, with a 20 IMD bond and a 7-day cooldown.', '')}
+              ${docContract('ProjectRegistry', 'Live', 'pill-live', ADDRESSES.MAINNET_REGISTRY, 'Launch #1495, block 26,180,923: the project list decided by IdentityMD oracle panels (rules v3.1, owner-only applications), the code of Sepolia test run 6 plus one guard (the registry itself is refused as beneficiary). Bond 20 IMD, cooldown 7 days. Source verified on Sourcify.', EXPLORER.mainnet)}
             </div>
             <h2 id="earlier">Earlier Sepolia deployments</h2>
             ${docTable(['Contract', 'Address', 'Note'], [
+              ['ProjectRegistry, test run 5 (#1428)', docAddr(ADDRESSES.REGISTRY_RUN5), 'Rules v3; SelfCredit rejected, the TrialVenue listed and defended in the live trial.'],
               ['ProjectRegistry, test run 4 (#1378)', docAddr(ADDRESSES.REGISTRY_RUN4), 'Rules v2; PLEA listed and defended in the live trial.'],
               ['ProjectRegistry, test run 3 (#1371)', docAddr(ADDRESSES.REGISTRY_RUN3), 'Rules v2, before owed bonds.'],
               ['ProjectRegistry, test run 2 (#1294)', docAddr(ADDRESSES.REGISTRY_RUN2), 'Rules v1.'],
@@ -1905,8 +1977,8 @@ error ZeroShares();`;
             <p>Every chain's cashback and points, rebuilt from the chain about every 15 minutes and published with this site. No key and no server: any site or script can fetch them.</p>
             ${docTable(['File', 'What it holds'], [
               ['<a href="./data/v1/index.json"><code>/data/v1/index.json</code></a>', 'The chains that have a file, with each file\'s last block. Start here.'],
-              ['<a href="./data/v1/sepolia.json"><code>/data/v1/sepolia.json</code></a>', 'Sepolia: the test run 2 Stacker and the test run 5 registry.'],
-              ['<a href="./data/v1/ethereum.json"><code>/data/v1/ethereum.json</code></a>', 'Ethereum mainnet: the Stacker (launch #1409). No registry yet, so no points.']
+              ['<a href="./data/v1/sepolia.json"><code>/data/v1/sepolia.json</code></a>', 'Sepolia: the test run 2 Stacker and the test run 6 registry.'],
+              ['<a href="./data/v1/ethereum.json"><code>/data/v1/ethereum.json</code></a>', 'Ethereum mainnet: the Stacker (launch #1409) and the ProjectRegistry (launch #1495); points count from each listing block.']
             ])}
             <h2 id="rules">What the numbers mean</h2>
             <ul>
@@ -1962,7 +2034,7 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
               <li><code>nonReentrant</code> on every state-changing entry point, OpenZeppelin <code>SafeERC20</code>, constructors that make no external call.</li>
             </ul>
             <h2 id="audits">Audits</h2>
-            <p>Every launch was built and audited by the <a href="https://imd.fun" target="_blank" rel="noopener noreferrer">IMD swarm</a>: an import audit, four specialist audits (math, permissions, economics, control flow), a judge that reproduces and ranks findings, an independent review, and reproducible bytecode. Sepolia launches #1129, #1294, #1371, #1378 and #1428, and the mainnet launch #1409; each finding was fixed or documented. The tests (unit, fuzz, invariants, and forks of mainnet and Sepolia) are in the repository.</p>
+            <p>Every launch was built and audited by the <a href="https://imd.fun" target="_blank" rel="noopener noreferrer">IMD swarm</a>: an import audit, four specialist audits (math, permissions, economics, control flow), a judge that reproduces and ranks findings, an independent review, and reproducible bytecode. Sepolia launches #1129, #1294, #1371, #1378, #1428 and #1463, and the mainnet launches #1409 (the Stacker) and #1495 (the ProjectRegistry); each finding was fixed or documented (see <a href="#/docs/launches">Launches &amp; audits</a>). The tests (unit, fuzz, invariants, and forks of mainnet and Sepolia) are in the repository.</p>
             <h2 id="trust">What you trust</h2>
             <ul>
               <li><strong>The sIMD vault</strong>, IMD's own ERC-4626 vault, whose owner is renounced.</li>
@@ -1974,6 +2046,46 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
               <li>One open question per project, first come: a project can take its own slot with a self-challenge, at the cost of the fee each time. Each one still puts the project before the panel.</li>
               <li>The oracle signer and Intake can't be changed; a new registry would replace this one. The Stacker never reads the registry, so that needs no Stacker change.</li>
             </ul>`
+        },
+        {
+          slug: 'launches',
+          title: 'Launches & audits',
+          summary: 'Every IMD job that built, audited and deployed imd/acc, with its launch, code and audit findings.',
+          keywords: 'launches jobs audits judge findings launch repository admission checks sepolia mainnet trials',
+          body: `
+            <p>Every contract imd/acc runs was built, audited and deployed by the <a href="https://imd.fun" target="_blank" rel="noopener noreferrer">IMD swarm</a> from the public repository, in paid jobs. Each launch runs an import audit, an adapt step, a tests step, four specialist audits (math, permissions, economics, control flow) and a judge, then seven admission checks (provenance, findings, independent review, reproducible bytecode, manifest, protected invariants, economics). Nothing critical or high was ever found. The full record with every transaction: <a href="https://github.com/khaed1/imd-acc/blob/main/docs/launches.md" target="_blank" rel="noopener noreferrer">docs/launches.md</a> and <a href="https://github.com/khaed1/imd-acc/blob/main/docs/history.md" target="_blank" rel="noopener noreferrer">docs/history.md</a>.</p>
+            <p><strong>Check a job yourself</strong> (public, no key): <code>https://api.imd.fun/jobs/&lt;job id&gt;</code> (state, steps, launch), <code>/jobs/&lt;job id&gt;/submissions</code> (each step's summary and the judge's findings), <code>/launches/&lt;launch id&gt;</code> (addresses, admission checks). The delivered code is a public repository per launch under <a href="https://github.com/identity-md-launches" target="_blank" rel="noopener noreferrer">identity-md-launches</a>.</p>
+            <h2 id="launches">Launches</h2>
+            ${docTable(['Launch', 'What', 'Job', 'Contracts', 'Code'], [
+              ['#1129, Sepolia test run 1 (2026-10-09)', 'TestIMD, TestSIMD, the first Stacker', '<code>640b4951-f512-4415-ab2e-944462a2f5ba</code>', 'Stacker ' + docAddr(ADDRESSES.STACKER_V1), '<a href="https://github.com/identity-md-launches/launch-1129-build-imd-acc-sepolia-test" target="_blank" rel="noopener noreferrer">launch-1129</a>'],
+              ['#1294, Sepolia test run 2 (2026-10-11)', 'The Stacker (mainnet design) and the first ProjectRegistry (rules v1)', '<code>0b69e5bd-873f-4bcf-9e02-ef1a00a4b2f5</code>', 'Stacker ' + docAddr(ADDRESSES.STACKER) + ', registry ' + docAddr(ADDRESSES.REGISTRY_RUN2), '<a href="https://github.com/identity-md-launches/launch-1294-deploy-two-smart-contracts" target="_blank" rel="noopener noreferrer">launch-1294</a>'],
+              ['#1371, Sepolia test run 3 (2026-10-12)', 'ProjectRegistry, rules v2, one handoff per day', '<code>99f41994-1d2e-4e28-9a9b-338f78f576bf</code> (job 8, <code>6478f77c…</code>, was audited but never delivered)', docAddr(ADDRESSES.REGISTRY_RUN3), '<a href="https://github.com/identity-md-launches/launch-1371-launch-imd-acc-s-third-last" target="_blank" rel="noopener noreferrer">launch-1371</a>'],
+              ['#1378, Sepolia test run 4 (2026-10-12)', 'ProjectRegistry, rules v2, owed bonds', '<code>87fc50ef-4459-4b7a-90f0-e5399043a2b9</code>', docAddr(ADDRESSES.REGISTRY_RUN4), '<a href="https://github.com/identity-md-launches/launch-1378-launch-imd-acc-s-fourth-last" target="_blank" rel="noopener noreferrer">launch-1378</a>'],
+              ['<strong>#1409, Ethereum mainnet (2026-10-12)</strong>', 'The Stacker against the real IMD and sIMD', '<code>cf76678d-aad4-413e-b24a-1066e990237d</code>', docAddr(ADDRESSES.MAINNET_STACKER), '<a href="https://github.com/identity-md-launches/launch-1409-launch-imd-acc-ethereum-mainnet" target="_blank" rel="noopener noreferrer">launch-1409</a>'],
+              ['#1428, Sepolia test run 5 (2026-10-12)', 'ProjectRegistry, rules v3, owner-only applications', '<code>50be58df-6c55-4f75-98a3-9ee3aa432075</code>', docAddr(ADDRESSES.REGISTRY_RUN5), '<a href="https://github.com/identity-md-launches/launch-1428-launch-imd-acc-s-sepolia-test" target="_blank" rel="noopener noreferrer">launch-1428</a>'],
+              ['#1463, Sepolia test run 6 (2026-10-12)', 'ProjectRegistry, rules v3.1 (the current Sepolia registry)', '<code>3f5d2049-b807-43eb-853f-3aeddefa485f</code>', docAddr(ADDRESSES.PROJECT_REGISTRY), '<a href="https://github.com/identity-md-launches/launch-1463-launch-imd-acc-s-sepolia-test" target="_blank" rel="noopener noreferrer">launch-1463</a>'],
+              ['<strong>#1495, Ethereum mainnet (2026-10-13)</strong>', 'The ProjectRegistry: rules v3.1, owner-only applications, bond 20 IMD, cooldown 7 days', '<code>4a9a5a47-2aef-4bb1-badc-7c3d79da55f8</code> (a first job, <code>b4b81b03…</code>, blocked on the accepted self-challenge limit)', docAddr(ADDRESSES.MAINNET_REGISTRY, true), '<a href="https://github.com/identity-md-launches/launch-1495-launch-imd-acc-s-mainnet-projectregistry" target="_blank" rel="noopener noreferrer">launch-1495</a>']
+            ])}
+            <h2 id="audits">What the audits found</h2>
+            ${docTable(['Launch', 'Findings', 'Outcome'], [
+              ['#1129', 'None kept by the judge; the bytecode reproduces exactly with forge 1.8.3.', 'Deployed as written.'],
+              ['#1294', '<strong>Medium:</strong> a beneficiary could change wallets ahead of a challenge and collect the bond. <strong>Lows:</strong> an answer never consumed; an unbounded cooldown; a challenge restated the application rate; a 1-wei credit renews the one-block hold.', 'Fixed by IMD before deploying: challenges pin the wallet, each answer is consumed once, the cooldown is capped, a challenge judges the current rate; the Stacker checks the vault on its first credit. The hold is a property of the vault, documented.'],
+              ['Job 8 and #1371', '<strong>Medium:</strong> a beneficiary could still refuse every challenge by moving the wallet ahead of each one. <strong>Lows:</strong> a self-challenge costs only the fee; a bond the token refuses could hold a question open for good.', 'One beneficiary handoff per day (IMD\'s fix). Self-challenge documented. Owed bonds fixed before test run 4.'],
+              ['#1378', '<strong>Low:</strong> the self-challenge. Token edge cases unreachable with IMD.', 'Documented.'],
+              ['#1409', '<strong>Low:</strong> <code>credit</code> accepted the Stacker, the vault or IMD as the trader, stranding shares. <strong>Medium:</strong> the integration rule\'s fallback to <code>sender</code> names the router in a v4 hook. <strong>Low:</strong> a tight gas cap fails the first-ever credit.', '<code>InvalidTrader</code> added to the live Stacker. The trader rule rewritten (hookData, else the router\'s <code>msgSender()</code>, else a plain-wallet sender), now the registry\'s rule. Gas budget 350k with a 410k check.'],
+              ['#1428', '<strong>Low:</strong> a burn-address owner locks a project out. <strong>Info:</strong> an <code>owner()</code> over 30,000 gas reads as no owner.', 'Design choice, documented.'],
+              ['#1463', '<strong>Lows:</strong> the owner gate fails open behind seven or more proxy hops; the self-challenge. <strong>Info:</strong> a non-address <code>owner()</code> locks a project out; signer and Intake fixed for life; delisting is not retroactive.', 'Documented trade-offs of the no-owner design.'],
+              ['#1495', '<strong>Low:</strong> a project could name the registry itself as beneficiary, stranding a defended bond. <strong>Low:</strong> a stranger can hold an ownerless project\'s application slot for the fee per round. <strong>Info:</strong> the accepted self-challenge limit; signer and Intake fixed for life; the Intake writer pairs answers.', 'IMD added a guard before deploying: the registry is refused as beneficiary in <code>applyListing</code> and <code>setBeneficiary</code>. The ownerless-slot point is the known limit for projects without an owner. The rest documented.']
+            ])}
+            <h2 id="trials">The live trials</h2>
+            ${docTable(['Registry', 'Case', 'Result'], [
+              ['Test run 2 (rules v1)', 'PLEA applied twice; SelfCredit applied', 'Split, 8 and 9 of 13 yes (11 needed), cleared; SelfCredit rejected 12 of 12'],
+              ['Test run 4 (rules v2)', 'PLEA applied and challenged; SelfCredit applied', 'PLEA listed 11 of 12 and defended 11 of 11; SelfCredit rejected 12 of 12'],
+              ['Test run 5 (rules v3)', 'SelfCredit applied; the TrialVenue applied and challenged', 'SelfCredit rejected 11 of 11; the venue listed 11 of 14 and defended 11 of 12'],
+              ['Rehearsal of rules v3.1', 'The venue\'s question with one rule replaced', '11 of 11 yes'],
+              ['Test run 6 (rules v3.1)', 'The TrialVenue applied and challenged', 'Listed 11 of 11; defended 11 of 11'],
+            ])}
+            <p>Every panel answer is a public oracle request at <code>https://api.imd.fun/oracle/requests/&lt;id&gt;</code>, with each member\'s reasoning; the ids are in the history.</p>`
         }
       ]
     },
@@ -2004,11 +2116,11 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
           keywords: 'roadmap next mainnet indexer dashboard registry multichain eth route',
           body: `
             <ol>
-              <li><strong>Sepolia test runs</strong> (done): the Stacker and the ProjectRegistry, now at test run 5 (launch #1428).</li>
+              <li><strong>Sepolia test runs</strong> (done): the Stacker and the ProjectRegistry, now at test run 6 (launch #1463).</li>
               <li><strong>Live listing trial</strong> on Sepolia (done, 2026-10-12): PLEA listed by the oracle panel, a negative case rejected, and a challenge against PLEA defended.</li>
               <li><strong>The Stacker on Ethereum mainnet</strong> (done, 2026-10-12, launch #1409), with a full IMD swarm audit. PLEA mainnet uses its address.</li>
               <li><strong>Indexer and mainnet dashboard</strong>: each trader's cashback, points and value, and the leaderboards.</li>
-              <li><strong>ProjectRegistry on mainnet</strong>: a 20 IMD challenge bond and a 7-day cooldown.</li>
+              <li><strong>ProjectRegistry on mainnet</strong> (done, 2026-10-13, launch #1495): a 20 IMD challenge bond and a 7-day cooldown. Points count from each project's listing block.</li>
               <li><strong>Multichain</strong>: Robinhood Chain first, then Base and Arbitrum.</li>
               <li><strong>v2, the ETH route</strong>, for projects whose fees are in ETH: pending ETH is swapped to IMD in guarded batches, then staked. Built once such a project wants in.</li>
             </ol>`
@@ -2257,10 +2369,16 @@ const points = me ? Number(BigInt(me.points) / 10n ** 14n) / 1e4 : 0;`, 'code-da
       }).catch(() => {});
     }
 
+    // Network switch (Ethereum by default; Sepolia for testing)
+    document.querySelectorAll('.net-btn').forEach(b => b.addEventListener('click', () => {
+      if (b.getAttribute('data-net') !== NET.key) setNetwork(b.getAttribute('data-net'));
+    }));
+    setNetwork(NET.key, false);
+
     // Hashchange listener
     window.addEventListener('hashchange', () => render());
 
-    // Initial render, then fill in what Sepolia says, and keep it fresh while the tab is visible.
+    // Initial render, then fill in what the chain says, and keep it fresh while the tab is visible.
     render();
     refreshLive();
     setInterval(() => {

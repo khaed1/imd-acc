@@ -98,6 +98,8 @@ await page.exposeFunction("__walletRpc", async (s) => {
   return JSON.stringify(await rpc(method, params));
 });
 await page.addInitScript(INIT);
+// The site defaults to Ethereum mainnet; the trial runs on Sepolia.
+await page.addInitScript(() => { try { localStorage.setItem("imd_acc_network", "sepolia"); } catch (e) {} });
 
 async function waitSent(n, label, sel) {
   const ready = () => (sel ? sent.some((t) => t.sel === sel) : sent.length >= n);
@@ -139,7 +141,7 @@ if (STEP === "challenge") {
   await page.click("#btn-wallet");
   await page.waitForTimeout(4000);
   // Fee token balance and allowance of the test wallet: mint and approve only when short (a rerun).
-  const FEE_TOKEN = "0x44a1cd38474fb1748400e7deb5f8d786cce3f89a", REGISTRY = "0x5f63cdead0f5f693b8964d82b56155f55645ccea";
+  const FEE_TOKEN = "0x44a1cd38474fb1748400e7deb5f8d786cce3f89a", REGISTRY = "0x30a3bb4d75989cb19f83607abc2dffe52a253384";
   const pad = (a) => a.slice(2).padStart(64, "0");
   const balance = BigInt((await rpc("eth_call", [{ to: FEE_TOKEN, data: "0x70a08231" + pad(ACCOUNT) }, "latest"])).result);
   const allowance = BigInt((await rpc("eth_call", [{ to: FEE_TOKEN, data: "0xdd62ed3e" + pad(ACCOUNT) + pad(REGISTRY) }, "latest"])).result);

@@ -312,6 +312,43 @@ h1:focus, .page-title:focus, .hero-title:focus, h2:focus, h3:focus {
   font-size: 0.85rem;
 }
 
+/* Network switch (Ethereum | Sepolia) */
+.net-switch {
+  display: inline-flex;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 2px;
+  background: var(--bg-surface);
+}
+
+.net-btn {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.net-btn:hover {
+  color: var(--text-primary);
+}
+
+.net-btn.active {
+  background: var(--accent-subtle);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.net-short {
+  display: none;
+}
+
 .status-indicator {
   width: 8px;
   height: 8px;
@@ -1524,6 +1561,36 @@ main {
 @media (max-width: 640px) {
   .brand-badge {
     display: none;
+  }
+
+  .net-long {
+    display: none;
+  }
+
+  .net-short {
+    display: inline;
+  }
+
+  .net-btn {
+    padding: 4px 7px;
+    font-size: 0.7rem;
+  }
+
+  .header-actions {
+    gap: 5px;
+  }
+
+  .header-actions .btn-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .header-inner {
+    gap: 8px;
+  }
+
+  .brand {
+    gap: 6px;
   }
 
   .wallet-text {

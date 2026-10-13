@@ -59,7 +59,7 @@
           </svg>
         </div>
         <span>imd<span class="brand-acc">/</span>acc</span>
-        <span class="brand-badge">Test run 5</span>
+        <span class="brand-badge" id="brand-badge">Mainnet</span>
       </a>
 
       <!-- Navigation Links -->
@@ -75,6 +75,11 @@
       </nav>
 
       <div class="header-actions">
+        <!-- Network switch: Ethereum mainnet by default, Sepolia for testing -->
+        <div class="net-switch" id="net-switch" role="group" aria-label="Network">
+          <button type="button" class="net-btn active" data-net="ethereum" aria-pressed="true" title="Ethereum mainnet"><span class="net-long">Ethereum</span><span class="net-short">ETH</span></button>
+          <button type="button" class="net-btn" data-net="sepolia" aria-pressed="false" title="Sepolia testnet (test run 6)"><span class="net-long">Sepolia</span><span class="net-short">SEP</span></button>
+        </div>
         <!-- Theme Toggle -->
         <button class="btn-icon" id="theme-toggle" aria-label="Toggle Theme" title="Toggle Light/Dark Theme">
           <svg id="icon-theme" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -123,7 +128,7 @@
             <span>imd<span class="brand-acc">/</span>acc</span>
           </div>
           <p class="footer-text">
-            Trading cashback in staked IMD. Powered by ownerless ERC-4626 staking vaults on the Ethereum network.
+            Trading cashback in staked IMD, live on Ethereum mainnet. An independent project built on IMD's ownerless ERC-4626 staking vault.
           </p>
         </div>
 
@@ -140,8 +145,8 @@
           <h5>Contracts & Code</h5>
           <ul class="footer-links-list">
             <li><a href="https://github.com/khaed1/imd-acc" target="_blank" rel="noopener noreferrer" class="footer-link">GitHub Repository</a></li>
-            <li><a href="https://sepolia.etherscan.io/address/0x0457276d7b036818b3eddc1a4a3fceda61e9314d" target="_blank" rel="noopener noreferrer" class="footer-link">Sepolia Stacker</a></li>
-            <li><a href="https://sepolia.etherscan.io/address/0x5f63cdead0f5f693b8964d82b56155f55645ccea" target="_blank" rel="noopener noreferrer" class="footer-link">Sepolia ProjectRegistry</a></li>
+            <li><a href="https://etherscan.io/address/0x06909f672301f28a810f78cfe7a754851269f4f0" target="_blank" rel="noopener noreferrer" class="footer-link" data-net-explorer="stacker">Ethereum Stacker</a></li>
+            <li><a href="https://etherscan.io/address/0x7f53fa1543c682bb5de3f50c2cf3d1842ae57faa" target="_blank" rel="noopener noreferrer" class="footer-link" data-net-explorer="registry">Ethereum ProjectRegistry</a></li>
             <li><a href="#/docs/contracts" class="footer-link">All Contracts</a></li>
             <li><a href="./llms.txt" target="_blank" class="footer-link">llms.txt Agent Spec</a></li>
           </ul>

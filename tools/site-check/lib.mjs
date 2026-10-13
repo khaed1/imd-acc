@@ -44,6 +44,7 @@ const WALLET_INIT = `(() => {
     removeListener(ev, f) { listeners[ev] = (listeners[ev] || []).filter((g) => g !== f); return provider; },
   };
   window.__testWallet = { emit };
+  try { if (!localStorage.getItem("imd_acc_network")) localStorage.setItem("imd_acc_network", "sepolia"); } catch (e) {} // the checks run against Sepolia
   if (!window.ethereum) window.ethereum = provider; // sites that read window.ethereum, like MetaMask and Rabby set it
   const info = Object.freeze({ uuid: "7e57c0de-0000-4000-8000-000000000001", name: "Test Wallet", rdns: "test.wallet",
     icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'/%3E" });

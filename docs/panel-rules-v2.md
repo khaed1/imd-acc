@@ -86,3 +86,5 @@ All four no votes on the venue say the same thing: its `resolveTrader` accepts a
 | Version 3 | application | 11 | 3 | signed yes |
 | Version 3 | challenge | 11 | 1 | signed yes |
 | Version 3.1 | rehearsal (same question, this rule replaced) | 11 | 0 | **signed yes** |
+| Version 3.1 (live, test run 6) | application | 11 | 0 | **signed yes: listed** ([history 44](history.md#44-test-run-6-trial-the-trialvenue-listed-11-of-11-2026-10-13)) |
+| Version 3.1 (live, test run 6) | challenge | 11 | 0 | **signed yes: defended** |
