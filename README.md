@@ -74,6 +74,8 @@ Source: [`src/Stacker.sol`](src/Stacker.sol), the contract live on Ethereum main
 
 ## Deployments
 
+Every deployment below was built, audited and deployed by the IMD swarm in a paid job; the jobs, launches, delivered code and audit findings are listed in [docs/launches.md](docs/launches.md) and on the site's Docs page "Launches & audits".
+
 ### Sepolia (live, launch #1129, block 11,874,601)
 
 | Contract | Address | Notes |
@@ -238,6 +240,7 @@ docs/
   history.md              what happened so far, with the checks and transactions behind it
   panel-rules-v2.md       the oracle panel's rules: versions 2 and 3 (live on Sepolia) and the proposed 3.1
   data-api.md             the data API: JSON snapshot files, their format and stability promise
+  launches.md             every IMD job and launch, the code it delivered and what its audit found
   explainer.html          a one-page explainer for traders and projects
 jobs/                     IMD swarm job prompts, in order
   1-sepolia-launch.md     the Sepolia launch (done, launch #1129)
