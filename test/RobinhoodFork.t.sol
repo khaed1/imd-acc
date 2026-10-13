@@ -13,6 +13,8 @@ interface ILiveRemoteOFT {
     function sharedDecimals() external view returns (uint8);
     function enforcedOptions(uint32 eid, uint16 msgType) external view returns (bytes memory);
     function totalSupply() external view returns (uint256);
+    function owner() external view returns (address);
+    function setPeer(uint32 eid, bytes32 peer) external;
 }
 
 /// @dev Runs against a fork of Robinhood Chain (chain 4663) with the live IMD OFT and LayerZero
@@ -30,7 +32,7 @@ contract RobinhoodForkTest is Test {
     bytes32 internal constant PACKET_SENT = keccak256("PacketSent(bytes,bytes,address)");
 
     RemoteStacker internal rs;
-    address internal receiver = makeAddr("stackReceiverOnEthereum");
+    address internal constant RECEIVER = 0x1999a54f573dAc75ce8Ef62A555dba418c9B3D10;
     address internal project = makeAddr("project");
     address internal flusher = makeAddr("flusher");
     bool internal forked;
@@ -41,7 +43,7 @@ contract RobinhoodForkTest is Test {
         vm.createSelectFork(rpc);
         if (block.chainid != 4663) return;
         forked = true;
-        rs = new RemoteStacker(IERC20(IMD), receiver, ETH_SIMD, ETH_EID);
+        rs = new RemoteStacker(IERC20(IMD), RECEIVER, ETH_SIMD, ETH_EID);
         deal(IMD, project, 1_000e18, true);
         vm.prank(project);
         IERC20(IMD).approve(address(rs), type(uint256).max);
@@ -140,5 +142,43 @@ contract RobinhoodForkTest is Test {
         rs.flush{value: fee / 2}(list);
         assertEq(rs.waiting(alice), 1e18);
         assertEq(IERC20(IMD).balanceOf(address(rs)), 1e18);
+    }
+
+    /// @dev The bridge-owner trust assumption, exercised only on a local fork. Disabling the
+    /// Ethereum peer blocks both quoting and sending; restoring it reopens the fixed route.
+    function test_fork_OFTPeerRemovalBlocksTheOnlyExitAtomically() public onlyFork {
+        address alice = makeAddr("alice");
+        vm.prank(project);
+        rs.credit(alice, 1e18);
+        uint256 since = rs.waitingSince(alice);
+        vm.warp(block.timestamp + 12 hours);
+        address[] memory list = new address[](1);
+        list[0] = alice;
+        (,,,, uint256 fee) = rs.quoteFlush(list);
+        bytes32 peer = ILiveRemoteOFT(IMD).peers(ETH_EID);
+        address bridgeOwner = ILiveRemoteOFT(IMD).owner();
+        assertTrue(bridgeOwner != address(0));
+        vm.prank(bridgeOwner);
+        ILiveRemoteOFT(IMD).setPeer(ETH_EID, bytes32(0));
+
+        vm.expectRevert(abi.encodeWithSignature("NoPeer(uint32)", ETH_EID));
+        rs.quoteFlush(list);
+        vm.expectRevert(abi.encodeWithSignature("NoPeer(uint32)", ETH_EID));
+        vm.prank(flusher);
+        rs.flush{value: fee}(list);
+        assertEq(rs.waiting(alice), 1e18);
+        assertEq(rs.waitingSince(alice), since);
+        assertEq(IERC20(IMD).balanceOf(address(rs)), 1e18);
+        assertEq(IERC20(IMD).balanceOf(flusher), 0);
+        assertEq(flusher.balance, 1 ether);
+
+        vm.prank(bridgeOwner);
+        ILiveRemoteOFT(IMD).setPeer(ETH_EID, peer);
+        (,,,, fee) = rs.quoteFlush(list);
+        vm.prank(flusher);
+        rs.flush{value: fee}(list);
+        assertEq(rs.waiting(alice), 0);
+        assertEq(IERC20(IMD).balanceOf(address(rs)), 0);
+        assertEq(IERC20(IMD).balanceOf(flusher), 1e18 * 200 / 10_000);
     }
 }
