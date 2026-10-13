@@ -7,6 +7,11 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {OracleAttestation, OracleAttestationConsumer} from "./oracle/OracleAttestation.sol";
 
+/// @dev Robinhood Chain's ArbSys precompile exposes the rollup block height used by RPC/logs.
+interface IRegistryArbSys {
+    function arbBlockNumber() external view returns (uint256);
+}
+
 /// @dev The IdentityMD Intake, version 2: the parts the registry uses.
 interface IIntake {
     struct Callback {
@@ -399,10 +404,10 @@ contract ProjectRegistry is OracleAttestationConsumer, ReentrancyGuard {
         if (ask == Ask.Apply) {
             if (yes) {
                 p.listed = true;
-                p.fromBlock = uint64(block.number);
+                p.fromBlock = _listingBlockNumber();
                 p.toBlock = 0;
                 p.challengeOpenAt = uint64(block.timestamp) + challengeCooldown;
-                emit Listed(project, p.rateBps, p.beneficiary, uint64(block.number), a.requestId);
+                emit Listed(project, p.rateBps, p.beneficiary, p.fromBlock, a.requestId);
             } else {
                 emit Rejected(project, a.requestId);
             }
@@ -413,10 +418,20 @@ contract ProjectRegistry is OracleAttestationConsumer, ReentrancyGuard {
             emit Defended(project, challengeBond, a.requestId);
         } else {
             p.listed = false;
-            p.toBlock = uint64(block.number);
+            p.toBlock = _listingBlockNumber();
             _payBond(asker);
-            emit Delisted(project, uint64(block.number), a.requestId);
+            emit Delisted(project, p.toBlock, a.requestId);
         }
+    }
+
+    /// @dev On Robinhood (Arbitrum Orbit), NUMBER is the parent-chain height. Listing periods
+    /// must instead share the block space of credit logs. Read only when a period changes, never
+    /// in the constructor; do not fall back to a parent height if the precompile fails.
+    function _listingBlockNumber() internal view returns (uint64) {
+        if (block.chainid == 4663) {
+            return uint64(IRegistryArbSys(address(0x64)).arbBlockNumber());
+        }
+        return uint64(block.number);
     }
 
     /// @notice The Intake's failure function (selector 0xa7980e31): the question was refused or
@@ -494,6 +509,7 @@ contract ProjectRegistry is OracleAttestationConsumer, ReentrancyGuard {
     /// another one if the token refuses to pay yours.
     function claimBond(address to) external nonReentrant {
         if (to == address(0)) revert ZeroAddress();
+        if (to == address(this)) revert InvalidBeneficiary();
         uint256 amount = bondOwed[msg.sender];
         if (amount == 0) revert NothingOwed();
         bondOwed[msg.sender] = 0;

@@ -287,4 +287,27 @@ contract RegistryBondOwedTest is Test {
         vm.expectRevert(ProjectRegistry.NothingOwed.selector);
         reg.claimBond(challenger);
     }
+
+    /// @dev Audit 5e9e31497c76: a successful token self-transfer must not erase a claim.
+    function test_claimBond_refusesRegistryAndPreservesRecoverableBond() public {
+        bytes32 id = _listAndChallenge();
+        imd.setBlocked(challenger, true);
+        assertTrue(intake.fail(id, 2, bytes32("disagreed")));
+        assertEq(reg.bondOwed(challenger), BOND);
+        imd.setBlocked(challenger, false);
+        uint256 funds = imd.balanceOf(challenger);
+
+        vm.prank(challenger);
+        vm.expectRevert(ProjectRegistry.InvalidBeneficiary.selector);
+        reg.claimBond(address(reg));
+
+        assertEq(reg.bondOwed(challenger), BOND, "claim survives invalid recipient");
+        assertEq(imd.balanceOf(address(reg)), BOND, "bond still accounted for");
+        assertEq(imd.balanceOf(challenger), funds);
+        vm.prank(challenger);
+        reg.claimBond(otherWallet);
+        assertEq(imd.balanceOf(otherWallet), BOND);
+        assertEq(reg.bondOwed(challenger), 0);
+        assertEq(imd.balanceOf(address(reg)), 0);
+    }
 }
