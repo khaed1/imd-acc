@@ -172,7 +172,11 @@ contract StackReceiverMainnetForkTest is Test {
             emit log_named_uint("  lzReceive gas", receiveGas);
             emit log_named_uint("  lzCompose gas", composeGas);
             assertLt(receiveGas, RECEIVE_GAS, "RECEIVE_GAS covers the mint and the compose queue");
-            assertLt(composeGas * 10 / 12, base + per * n, "the compose budget keeps a 20% margin");
+            assertLt(
+                composeGas * 12 / 10,
+                base + per * n,
+                "the budget is at least 20% above the measured gas"
+            );
         }
     }
 
