@@ -20,7 +20,7 @@ Data API (JSON, every chain's cashback and points, about every 15 minutes): http
 - RemoteStacker: 0x4de07c2fa46d5d6ed9ceb3f38ec56d3461b3e898 (launch #1537; the same credit(trader, imdAmount); cashback waits per trader and anyone flushes up to 50 traders to the StackReceiver on Ethereum through IMD's LayerZero bridge for a tip of up to 2%; Queued(project, trader, recipient, imd) is the points record)
 - IMD: 0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127 (the same OFT over IMD's bridge, 6 shared decimals)
 - Intake v2: 0xa43e6f75ee006411f79ac1c84120606c2330de82
-- ProjectRegistry: not launched yet; credits on Robinhood Chain earn no points until it is
+- ProjectRegistry: 0x814da7f2469e3e37158ab7e031a31b3004d9bca1 (launch #1561, panel rules version 3.1, questions filed under chain 4663; the mainnet registry's code plus two audit fixes: listing blocks are read from the ArbSys precompile because block.number is Ethereum's height on Robinhood Chain, and claimBond refuses the registry itself; a project that reports an owner() is applied for by that owner; fee 0.5 IMD, challenge bond 20 IMD, cooldown 7 days, all in Robinhood Chain IMD). Credits from a listed project earn points from its listing block (the Queued events inside its listing periods); the site and the data API do not read Robinhood Chain yet
 
 ## Addresses (Sepolia 11155111)
 
