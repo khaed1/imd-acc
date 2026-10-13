@@ -177,6 +177,163 @@ contract StackReceiverTest is Test {
         assertEq(imd.balanceOf(address(receiver)), 7e18);
     }
 
+    /// @dev Reproduces the asset movement behind audit b9d7d08ba346: returning zero is not a revert.
+    function test_vault_zeroShareDepositStillConsumesAssets() public {
+        imd.mint(address(sImd), 3e24);
+        assertEq(sImd.previewDeposit(3e18), 0);
+        imd.mint(address(this), 3e18);
+        imd.approve(address(sImd), 3e18);
+        assertEq(sImd.deposit(3e18, alice), 0);
+        assertEq(imd.balanceOf(address(this)), 0, "vault consumed the deposit");
+        assertEq(imd.balanceOf(address(sImd)), 3e24 + 3e18);
+        assertEq(sImd.balanceOf(alice), 0, "no shares minted");
+    }
+
+    function test_delivery_zeroSharesPaysPlainIMDWithoutDepositing() public {
+        // The real Solady rounding path, with no mocked preview or deposit return value.
+        imd.mint(address(sImd), 3e24);
+        imd.mint(address(receiver), 7e18); // unsolicited IMD must not fund the fallback
+        assertEq(sImd.previewDeposit(3e18), 0);
+        assertEq(sImd.previewDeposit(2e18), 0);
+        vm.expectEmit(true, true, true, true, address(receiver));
+        emit StackReceiver.DeliveredPlain(bytes32(uint256(1)), RH_EID, alice, 3e18);
+        vm.expectEmit(true, true, true, true, address(receiver));
+        emit StackReceiver.DeliveredPlain(bytes32(uint256(1)), RH_EID, bob, 2e18);
+        deliver(5e18, list(alice, 3e18, bob, 2e18));
+        assertEq(imd.balanceOf(alice), 3e18);
+        assertEq(imd.balanceOf(bob), 2e18);
+        assertEq(imd.balanceOf(address(receiver)), 7e18);
+        assertEq(imd.balanceOf(address(sImd)), 3e24, "no zero-share deposit attempted");
+        assertEq(sImd.totalSupply(), 0);
+        assertEq(receiver.totalDelivered(), 5e18);
+        assertEq(receiver.deliveredFrom(RH_EID), 5e18);
+    }
+
+    function testFuzz_delivery_mixedZeroAndPositiveShares(
+        uint96 plainRaw,
+        uint96 stakedRaw,
+        bool plainFirst
+    ) public {
+        uint256 plain = bound(uint256(plainRaw), 1, 2e12);
+        uint256 staked = bound(uint256(stakedRaw), 2e12 + 1, 1e18);
+        imd.mint(address(sImd), 2e18);
+        assertEq(sImd.previewDeposit(plain), 0);
+        uint256 shares = sImd.previewDeposit(staked);
+        assertGt(shares, 0);
+        bytes memory payload =
+            plainFirst ? list(alice, plain, bob, staked) : list(bob, staked, alice, plain);
+        if (plainFirst) {
+            vm.expectEmit(true, true, true, true, address(receiver));
+            emit StackReceiver.DeliveredPlain(bytes32(uint256(1)), RH_EID, alice, plain);
+            vm.expectEmit(true, true, true, true, address(receiver));
+            emit StackReceiver.Delivered(bytes32(uint256(1)), RH_EID, bob, staked, shares);
+        } else {
+            vm.expectEmit(true, true, true, true, address(receiver));
+            emit StackReceiver.Delivered(bytes32(uint256(1)), RH_EID, bob, staked, shares);
+            vm.expectEmit(true, true, true, true, address(receiver));
+            emit StackReceiver.DeliveredPlain(bytes32(uint256(1)), RH_EID, alice, plain);
+        }
+        deliver(plain + staked, payload);
+        assertEq(imd.balanceOf(alice), plain);
+        assertEq(sImd.balanceOf(alice), 0);
+        assertEq(imd.balanceOf(bob), 0);
+        assertEq(sImd.balanceOf(bob), shares);
+        assertEq(imd.balanceOf(address(sImd)), 2e18 + staked);
+        assertEq(imd.balanceOf(address(receiver)), 0);
+        assertEq(receiver.totalDelivered(), plain + staked);
+        assertEq(receiver.deliveredFrom(RH_EID), plain + staked);
+    }
+
+    function test_delivery_revertingPreviewPaysOnlyThatTraderPlainIMD() public {
+        vm.mockCallRevert(
+            address(sImd), abi.encodeWithSelector(sImd.previewDeposit.selector, 3e18), "no preview"
+        );
+        vm.expectEmit(true, true, true, true, address(receiver));
+        emit StackReceiver.DeliveredPlain(bytes32(uint256(1)), RH_EID, alice, 3e18);
+        vm.expectEmit(true, true, true, true, address(receiver));
+        emit StackReceiver.Delivered(bytes32(uint256(1)), RH_EID, bob, 2e18, 2e24);
+        deliver(5e18, list(alice, 3e18, bob, 2e18));
+        assertEq(imd.balanceOf(alice), 3e18);
+        assertEq(sImd.balanceOf(alice), 0);
+        assertEq(sImd.balanceOf(bob), 2e24);
+        assertEq(imd.balanceOf(address(sImd)), 2e18);
+        assertEq(imd.balanceOf(address(receiver)), 0);
+        assertEq(receiver.totalDelivered(), 5e18);
+        assertEq(receiver.deliveredFrom(RH_EID), 5e18);
+    }
+
+    function test_delivery_revertingDepositPaysOnlyThatTraderPlainIMD() public {
+        assertGt(sImd.previewDeposit(3e18), 0);
+        vm.mockCallRevert(
+            address(sImd), abi.encodeWithSelector(sImd.deposit.selector, 3e18, alice), "no deposit"
+        );
+        vm.expectEmit(true, true, true, true, address(receiver));
+        emit StackReceiver.DeliveredPlain(bytes32(uint256(1)), RH_EID, alice, 3e18);
+        vm.expectEmit(true, true, true, true, address(receiver));
+        emit StackReceiver.Delivered(bytes32(uint256(1)), RH_EID, bob, 2e18, 2e24);
+        deliver(5e18, list(alice, 3e18, bob, 2e18));
+        assertEq(imd.balanceOf(alice), 3e18);
+        assertEq(sImd.balanceOf(alice), 0);
+        assertEq(sImd.balanceOf(bob), 2e24);
+        assertEq(imd.balanceOf(address(sImd)), 2e18);
+        assertEq(imd.balanceOf(address(receiver)), 0);
+        assertEq(receiver.totalDelivered(), 5e18);
+        assertEq(receiver.deliveredFrom(RH_EID), 5e18);
+    }
+
+    function test_delivery_inconsistentPreviewRollsBackInsteadOfSpendingOtherFunds() public {
+        imd.mint(address(sImd), 3e24);
+        imd.mint(address(receiver), 12e18); // 5 IMD arrived; 7 IMD is unrelated
+        bytes memory message =
+            endpoint.encode(1, RH_EID, 5e18, remote, list(alice, 3e18, bob, 2e18));
+        // A nonconforming vault: preview claims positive shares but the actual deposit mints zero.
+        vm.mockCall(
+            address(sImd), abi.encodeWithSelector(sImd.previewDeposit.selector, 3e18), abi.encode(1)
+        );
+        vm.expectRevert(StackReceiver.ZeroShares.selector);
+        endpoint.compose(address(imd), address(receiver), bytes32(uint256(1)), message);
+        assertEq(imd.balanceOf(address(receiver)), 12e18);
+        assertEq(imd.balanceOf(address(sImd)), 3e24);
+        assertEq(imd.balanceOf(alice), 0);
+        assertEq(imd.balanceOf(bob), 0);
+        assertEq(sImd.totalSupply(), 0);
+        assertEq(receiver.totalDelivered(), 0);
+        assertEq(receiver.deliveredFrom(RH_EID), 0);
+        assertEq(imd.allowance(address(receiver), address(sImd)), 0);
+
+        vm.clearMockedCalls();
+        endpoint.compose(address(imd), address(receiver), bytes32(uint256(1)), message);
+        assertEq(imd.balanceOf(alice), 3e18);
+        assertEq(imd.balanceOf(bob), 2e18);
+        assertEq(imd.balanceOf(address(receiver)), 7e18);
+        assertEq(receiver.totalDelivered(), 5e18);
+    }
+
+    /// @dev Audit 9b5ea0014338: the payable LayerZero ABI must not trap an executor's ETH.
+    function test_delivery_rejectsNativeValueAndCanRetryWithoutIt() public {
+        bytes memory message =
+            endpoint.encode(1, RH_EID, 5e18, remote, list(alice, 3e18, bob, 2e18));
+        imd.mint(address(receiver), 5e18);
+        vm.deal(address(endpoint), 1);
+        vm.expectRevert(StackReceiver.UnexpectedValue.selector);
+        vm.prank(address(endpoint));
+        receiver.lzCompose{value: 1}(address(imd), bytes32(uint256(1)), message, address(this), "");
+        assertEq(address(receiver).balance, 0);
+        assertEq(address(endpoint).balance, 1, "value returned to caller");
+        assertEq(imd.balanceOf(address(receiver)), 5e18, "arrival preserved for retry");
+        assertEq(sImd.totalSupply(), 0);
+        assertEq(receiver.totalDelivered(), 0);
+        assertEq(receiver.deliveredFrom(RH_EID), 0);
+        assertEq(imd.allowance(address(receiver), address(sImd)), 0);
+
+        endpoint.compose(address(imd), address(receiver), bytes32(uint256(1)), message);
+        assertEq(sImd.balanceOf(alice), 3e24);
+        assertEq(sImd.balanceOf(bob), 2e24);
+        assertEq(imd.balanceOf(address(receiver)), 0);
+        assertEq(receiver.totalDelivered(), 5e18);
+        assertEq(receiver.deliveredFrom(RH_EID), 5e18);
+    }
+
     function testFuzz_delivery_sumExactlyDelivered(uint96 x, uint96 y) public {
         vm.assume(x > 0 && y > 0);
         deliver(uint256(x) + y, list(alice, x, bob, y));

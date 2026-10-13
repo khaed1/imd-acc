@@ -7,12 +7,18 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {ILayerZeroComposer, OFTComposeMsg} from "./LayerZero.sol";
 import {IStakedIMD} from "../Stacker.sol";
 
+/// @dev The receiver also previews deposits; the live Stacker's interface stays unchanged.
+interface IStakedIMDPreview is IStakedIMD {
+    function previewDeposit(uint256 assets) external view returns (uint256 shares);
+}
+
 /// @title StackReceiver
 /// @notice The Ethereum end of imd/acc's multichain route. A RemoteStacker on another chain sends
 /// waiting cashback here through IMD's own LayerZero bridge (IMD is an OFT) as a send-and-call: the
 /// IMD is minted to this contract and the endpoint then calls `lzCompose` with the list of traders
 /// and amounts. This contract deposits each amount into the sIMD vault for its trader; if a deposit
-/// fails, that trader is paid plain IMD instead. It keeps no IMD after a delivery.
+/// fails or previews zero shares, that trader is paid plain IMD instead. It keeps no IMD after a
+/// delivery. Compose calls must carry no native ETH.
 ///
 /// It trusts only the endpoint and the IMD token: the endpoint calls `lzCompose` only for a compose
 /// the IMD token queued on arrival, and the amount in the message is written by the token. Whoever
@@ -43,7 +49,7 @@ contract StackReceiver is ILayerZeroComposer, ReentrancyGuard {
         uint256 imd,
         uint256 shares
     );
-    /// @notice The vault refused the deposit, so the trader was paid plain IMD.
+    /// @notice The vault refused the preview/deposit or previewed zero shares; paid plain IMD.
     event DeliveredPlain(
         bytes32 indexed guid, uint32 indexed srcEid, address indexed trader, uint256 imd
     );
@@ -55,6 +61,7 @@ contract StackReceiver is ILayerZeroComposer, ReentrancyGuard {
     error AmountMismatch(uint256 listed, uint256 received);
     error AssetMismatch(address vaultAsset, address imd);
     error ZeroShares();
+    error UnexpectedValue();
 
     /// @dev No external calls: the launch rehearses deployment on an empty chain. The first
     /// delivery checks the vault and approves it.
@@ -78,6 +85,7 @@ contract StackReceiver is ILayerZeroComposer, ReentrancyGuard {
     {
         if (msg.sender != ENDPOINT) revert NotEndpoint();
         if (from != address(IMD)) revert NotIMD();
+        if (msg.value != 0) revert UnexpectedValue();
         (address[] memory traders, uint256[] memory amounts) =
             abi.decode(message.composeMsg(), (address[], uint256[]));
         uint256 received = message.amountLD();
@@ -118,15 +126,32 @@ contract StackReceiver is ILayerZeroComposer, ReentrancyGuard {
         for (uint256 i; i < traders.length; ++i) {
             uint256 amount = amounts[i];
             if (amount == 0) continue;
-            // A deposit the vault refuses (paused, zero shares) must not hold the whole delivery:
-            // that trader gets plain IMD.
-            try SIMD.deposit(amount, traders[i]) returns (uint256 shares) {
-                if (shares == 0) revert ZeroShares(); // caught below: plain IMD instead
+            uint256 shares = _tryDeposit(amount, traders[i]);
+            if (shares != 0) {
                 emit Delivered(guid, srcEid, traders[i], amount, shares);
-            } catch {
+            } else {
                 IMD.safeTransfer(traders[i], amount);
                 emit DeliveredPlain(guid, srcEid, traders[i], amount);
             }
+        }
+    }
+
+    /// @dev Returning zero means no assets moved to the vault, so plain IMD can be paid safely.
+    function _tryDeposit(uint256 amount, address trader) internal returns (uint256) {
+        // Solady pulls assets even when rounding mints zero shares. Decide before depositing.
+        try IStakedIMDPreview(address(SIMD)).previewDeposit(amount) returns (uint256 preview) {
+            if (preview == 0) return 0;
+        } catch {
+            return 0;
+        }
+        try SIMD.deposit(amount, trader) returns (uint256 shares) {
+            // A positive preview guarantees positive shares from this ERC-4626 vault. If a
+            // nonconforming vault violates that, revert the transfer atomically. This revert
+            // intentionally propagates: paying plain IMD now could spend another trader's funds.
+            if (shares == 0) revert ZeroShares();
+            return shares;
+        } catch {
+            return 0;
         }
     }
 }
